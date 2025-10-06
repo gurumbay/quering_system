@@ -83,4 +83,17 @@ void Metrics::reset() {
     device_busy_times_.clear();
     source_arrivals_.clear();
     source_refusals_.clear();
+    timeline_events_.clear();
+}
+
+void Metrics::record_timeline_event(const TimelineEvent& event) {
+    timeline_events_.push_back(event);
+}
+
+const std::vector<TimelineEvent>& Metrics::get_timeline_events() const {
+    return timeline_events_;
+}
+
+void Metrics::clear_timeline_events() {
+    timeline_events_.clear();
 }

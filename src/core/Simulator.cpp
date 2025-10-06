@@ -14,7 +14,10 @@ Simulator::Simulator(const SimulationConfig& config)
 }
 
 void Simulator::run() {
-    schedule_next_arrival();
+    if (!initialized_) {
+        schedule_next_arrival();
+        initialized_ = true;
+    }
     
     while (!calendar_.is_empty()) {
         Event event = calendar_.pop_next();
