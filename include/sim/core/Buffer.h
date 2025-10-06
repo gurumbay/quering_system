@@ -9,9 +9,9 @@
 class Buffer {
 public:
     Buffer(size_t capacity);
-    bool place_request(size_t request_id);
+    std::optional<size_t> place_request(size_t request_id); // returns slot index
     size_t displace_request();
-    std::optional<size_t> take_request();
+    std::pair<std::optional<size_t>, size_t> take_request(); // returns (request_id, slot_index)
     bool is_empty() const;
     bool is_full() const;
     size_t get_size() const;

@@ -11,14 +11,15 @@ Simulator::Simulator(const SimulationConfig& config)
     }
     
     source_arrivals_count_.resize(config.sources.size(), 0);
+    
+    // Schedule initial arrivals for all sources
+    for (size_t i = 0; i < config.sources.size(); ++i) {
+        Event arrival_event(config.sources[i].arrival_interval, EventType::arrival, 0, 0, i);
+        calendar_.schedule(arrival_event);
+    }
 }
 
 void Simulator::run() {
-    if (!initialized_) {
-        schedule_next_arrival();
-        initialized_ = true;
-    }
-    
     while (!calendar_.is_empty()) {
         Event event = calendar_.pop_next();
         current_time_ = event.get_time();
@@ -42,11 +43,6 @@ void Simulator::run() {
 }
 
 void Simulator::step() {
-    if (!initialized_) {
-        schedule_next_arrival();
-        initialized_ = true;
-    }
-
     if (!calendar_.is_empty()) {
         Event event = calendar_.pop_next();
         current_time_ = event.get_time();
@@ -78,6 +74,9 @@ void Simulator::handle_arrival(size_t source_id) {
         metrics_.record_arrival(source_id);
         source_arrivals_count_[source_id]++;
         
+        // Record arrival event
+        metrics_.record_timeline_event({current_time_, "arrival", request_id, source_id, 0, 0, ""});
+        
         // D2P2: Find free device round-robin
         bool device_found = false;
         for (size_t i = 0; i < devices_.size(); ++i) {
@@ -89,19 +88,40 @@ void Simulator::handle_arrival(size_t source_id) {
                 
                 double service_time = service_dist_(rng_);
                 schedule_service_end(idx, request_id, current_time_ + service_time);
+                
+                // Record service start event
+                metrics_.record_timeline_event({current_time_, "service_start", request_id, source_id, idx, 0, ""});
+                
                 device_found = true;
                 break;
             }
         }
         
         if (!device_found) {
-            if (buffer_.place_request(request_id)) {
+            auto slot = buffer_.place_request(request_id);
+            if (slot.has_value()) {
                 // Successfully placed in buffer
+                metrics_.record_timeline_event({current_time_, "buffer_place", request_id, source_id, 0, *slot, ""});
             } else {
-                // Buffer full - D10O4: displace and place
-                buffer_.displace_request();
-                buffer_.place_request(request_id);
-                metrics_.record_refusal(source_id);
+                // Buffer full - D10O4: displace last arrived and place new request
+                size_t displaced_id = buffer_.displace_request();
+                
+                // Record refusal for the DISPLACED request
+                if (displaced_id && displaced_id < requests_.size()) {
+                    size_t displaced_source = requests_[displaced_id].get_source_id();
+                    metrics_.record_refusal(displaced_source);
+                    
+                    // Record buffer_displaced event to close the buffer interval for displaced request
+                    // We need to know which slot it was in - let's record refusal with special type
+                    metrics_.record_timeline_event({current_time_, "buffer_displaced", displaced_id, displaced_source, 0, 0, ""});
+                    metrics_.record_timeline_event({current_time_, "refusal", displaced_id, displaced_source, 0, 0, ""});
+                }
+                
+                // Now place the new request in the freed slot
+                auto new_slot = buffer_.place_request(request_id);
+                if (new_slot.has_value()) {
+                    metrics_.record_timeline_event({current_time_, "buffer_place", request_id, source_id, 0, *new_slot, ""});
+                }
             }
         }
         
@@ -125,18 +145,29 @@ void Simulator::handle_service_end(size_t device_id) {
         
         metrics_.record_completion(finished_id, time_in_system, waiting_time, service_time);
         metrics_.record_device_busy_time(device_id, service_time);
+        
+        // Record service end event
+        metrics_.record_timeline_event({current_time_, "service_end", finished_id, req.get_source_id(), device_id, 0, ""});
     }
     
     // D2B3: Check buffer for waiting requests
     if (!buffer_.is_empty()) {
-        auto next_request = buffer_.take_request();
-        if (next_request) {
-            devices_[device_id].start_service(*next_request, current_time_);
-            requests_[*next_request].set_service_start_time(current_time_);
+        auto [next_request, slot_idx] = buffer_.take_request();
+        if (next_request.has_value()) {
+            size_t request_id = *next_request;
+            
+            // Record buffer take event
+            metrics_.record_timeline_event({current_time_, "buffer_take", request_id, requests_[request_id].get_source_id(), device_id, slot_idx, ""});
+            
+            devices_[device_id].start_service(request_id, current_time_);
+            requests_[request_id].set_service_start_time(current_time_);
             next_device_idx_ = (device_id + 1) % devices_.size();
             
             double service_time = service_dist_(rng_);
-            schedule_service_end(device_id, *next_request, current_time_ + service_time);
+            schedule_service_end(device_id, request_id, current_time_ + service_time);
+            
+            // Record service start event
+            metrics_.record_timeline_event({current_time_, "service_start", request_id, requests_[request_id].get_source_id(), device_id, 0, ""});
         }
     }
 }
@@ -189,7 +220,7 @@ void Simulator::print_state() const {
 }
 
 bool Simulator::is_finished() const {
-    return (initialized_ && calendar_.is_empty()) || 
+    return calendar_.is_empty() || 
            metrics_.get_arrived() >= config_.max_arrivals ||
            current_time_ > config_.max_time;
 }

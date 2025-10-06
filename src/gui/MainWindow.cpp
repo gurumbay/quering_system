@@ -13,6 +13,10 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QFontMetrics>
+#include <map>
+#include <set>
+#include <algorithm>
+#include <iostream>
 
 // Simple Timeline Widget
 class TimelineWidget : public QWidget {
@@ -46,7 +50,17 @@ protected:
         int lineHeight = 30;
         int startY = 50;
         double currentTime = simulator_->get_current_time();
-        double maxTime = std::max(currentTime + 5.0, 20.0);
+        
+        // Calculate max time from events to show full intervals
+        Metrics m = simulator_->get_metrics();
+        const auto& events = m.get_timeline_events();
+        double maxEventTime = currentTime;
+        for (const auto& event : events) {
+            if (event.time > maxEventTime) {
+                maxEventTime = event.time;
+            }
+        }
+        double maxTime = std::max({currentTime + 5.0, maxEventTime + 2.0, 20.0});
         
         int width = this->width() - 2 * margin;
         int height = this->height() - 2 * startY;
@@ -112,6 +126,157 @@ protected:
         painter.setPen(Qt::red);
         painter.drawText(10, yPos + 5, "Отказ");
         
+        // Draw events from timeline (m already declared above)
+        
+        // Track service intervals for each device
+        std::map<size_t, std::vector<std::pair<double, double>>> deviceServices; // device_id -> [(start, end)]
+        std::map<size_t, std::vector<std::pair<size_t, std::pair<double, double>>>> bufferOccupancy; // slot -> [(request_id, (start, end))]
+        
+        // Process events to build service intervals and buffer occupancy
+        for (const auto& event : events) {
+            if (event.type == "service_start") {
+                // Mark start of service
+                deviceServices[event.device_id].push_back({event.time, -1.0});
+            } else if (event.type == "service_end") {
+                // Find matching start and update end time
+                auto& services = deviceServices[event.device_id];
+                for (auto it = services.rbegin(); it != services.rend(); ++it) {
+                    if (it->second < 0) {
+                        it->second = event.time;
+                        break;
+                    }
+                }
+            } else if (event.type == "buffer_place") {
+                bufferOccupancy[event.buffer_slot].push_back({event.request_id, {event.time, -1.0}});
+                // std::cout << "GUI: buffer_place: req " << event.request_id << " -> slot " << event.buffer_slot << " at " << event.time << std::endl;
+            } else if (event.type == "buffer_take") {
+                // Find and close the buffer interval for this request in this slot
+                auto& slot_intervals = bufferOccupancy[event.buffer_slot];
+                bool found = false;
+                for (auto& [req_id, interval] : slot_intervals) {
+                    if (req_id == event.request_id && interval.second < 0) {
+                        interval.second = event.time;
+                        found = true;
+                        // std::cout << "GUI: buffer_take: req " << event.request_id << " from slot " << event.buffer_slot << " at " << event.time << " (closed interval)" << std::endl;
+                        break;
+                    }
+                }
+                // if (!found) {
+                //     std::cout << "GUI WARNING: buffer_take event for req " << event.request_id << " slot " << event.buffer_slot << " but no open interval found!" << std::endl;
+                // }
+            } else if (event.type == "buffer_displaced") {
+                // Find and close the buffer interval for displaced request in ANY slot
+                bool found = false;
+                for (auto& [slot, intervals] : bufferOccupancy) {
+                    for (auto& [req_id, interval] : intervals) {
+                        if (req_id == event.request_id && interval.second < 0) {
+                            interval.second = event.time;
+                            found = true;
+                            // std::cout << "GUI: buffer_displaced: req " << event.request_id << " from slot " << slot << " at " << event.time << std::endl;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+            }
+        }
+        
+        int bufferStartY = startY + 30 + (static_cast<int>(config_.sources.size()) + static_cast<int>(config_.num_devices)) * lineHeight;
+        int refusalY = startY + 30 + (static_cast<int>(config_.sources.size()) + static_cast<int>(config_.num_devices) + static_cast<int>(config_.buffer_capacity)) * lineHeight;
+        
+        // Draw all events
+        for (const auto& event : events) {
+            if (event.time > maxTime) continue;
+            
+            int eventX = margin + static_cast<int>((width * event.time) / maxTime);
+            
+            if (event.type == "arrival") {
+                // Draw arrival on source line
+                int eventY = startY + 30 + static_cast<int>(event.source_id) * lineHeight;
+                painter.setPen(QPen(Qt::red, 2));
+                painter.drawLine(eventX, eventY - 5, eventX, eventY + 5);
+                painter.drawEllipse(eventX - 3, eventY - 3, 6, 6);
+                
+            } else if (event.type == "refusal") {
+                // Draw refusal X
+                painter.setPen(QPen(Qt::red, 3));
+                painter.drawLine(eventX - 5, refusalY - 5, eventX + 5, refusalY + 5);
+                painter.drawLine(eventX - 5, refusalY + 5, eventX + 5, refusalY - 5);
+            }
+        }
+        
+        // Draw service intervals as rectangles
+        for (const auto& [device_id, services] : deviceServices) {
+            int deviceY = startY + 30 + static_cast<int>(config_.sources.size()) * lineHeight + static_cast<int>(device_id) * lineHeight;
+            
+            for (const auto& [start, end] : services) {
+                if (start > maxTime) continue;
+                
+                int x1 = margin + static_cast<int>((width * start) / maxTime);
+                int x2;
+                
+                if (end < 0) {
+                    // Service still in progress - draw to current time with dashed line
+                    x2 = margin + static_cast<int>((width * currentTime) / maxTime);
+                    painter.setPen(QPen(Qt::darkGreen, 1, Qt::DashLine));
+                    painter.setBrush(QBrush(Qt::green, Qt::Dense4Pattern));
+                } else {
+                    // Service completed - draw solid
+                    x2 = margin + static_cast<int>((width * std::min(end, maxTime)) / maxTime);
+                    painter.setPen(QPen(Qt::darkGreen, 1));
+                    painter.setBrush(QBrush(Qt::green));
+                }
+                
+                painter.drawRect(x1, deviceY - 8, x2 - x1, 16);
+            }
+        }
+        
+        // Draw buffer occupancy intervals
+        // First pass: check which requests were displaced
+        std::set<size_t> displaced_requests;
+        for (const auto& event : events) {
+            if (event.type == "buffer_displaced") {
+                displaced_requests.insert(event.request_id);
+            }
+        }
+        
+        for (const auto& [slot, intervals] : bufferOccupancy) {
+            int bufferY = bufferStartY + static_cast<int>(slot) * lineHeight;
+            
+            for (const auto& [req_id, interval] : intervals) {
+                double start = interval.first;
+                double end = interval.second;
+                
+                if (start > maxTime) continue;
+                
+                int x1 = margin + static_cast<int>((width * start) / maxTime);
+                int x2;
+                
+                bool was_displaced = displaced_requests.count(req_id) > 0;
+                
+                if (end < 0) {
+                    // Still in buffer - draw to current time with pattern
+                    x2 = margin + static_cast<int>((width * currentTime) / maxTime);
+                    painter.setPen(QPen(Qt::black, 1, Qt::DashLine));
+                    painter.setBrush(QBrush(QColor(255, 165, 0), Qt::Dense4Pattern)); // orange with pattern
+                } else {
+                    // Completed - draw solid or transparent if displaced
+                    x2 = margin + static_cast<int>((width * std::min(end, maxTime)) / maxTime);
+                    painter.setPen(QPen(Qt::black, 1));
+                    
+                    if (was_displaced) {
+                        // Displaced request - draw transparent/faded
+                        painter.setBrush(QBrush(QColor(255, 165, 0, 80))); // orange with alpha=80 (transparent)
+                    } else {
+                        // Successfully taken from buffer - draw solid
+                        painter.setBrush(QBrush(QColor(255, 165, 0))); // orange solid
+                    }
+                }
+                
+                painter.drawRect(x1, bufferY - 8, x2 - x1, 16);
+            }
+        }
+        
         // Draw current time marker
         if (currentTime > 0) {
             int currentX = margin + (width * currentTime) / maxTime;
@@ -123,6 +288,50 @@ protected:
         painter.setPen(Qt::black);
         painter.setFont(QFont("Arial", 12, QFont::Bold));
         painter.drawText(rect(), Qt::AlignTop | Qt::AlignHCenter, "Временная диаграмма системы массового обслуживания");
+        
+        // Draw legend at bottom
+        painter.setFont(QFont("Arial", 9));
+        int legendY = startY + height + 30;
+        int legendItemWidth = 150;
+        
+        // Arrival
+        int legendX = margin;
+        painter.setPen(QPen(Qt::red, 2));
+        painter.drawLine(legendX, legendY, legendX + 15, legendY);
+        painter.drawEllipse(legendX + 6, legendY - 3, 6, 6);
+        painter.setPen(Qt::black);
+        painter.drawText(legendX + 20, legendY + 3, "Прибытие");
+        
+        // Service
+        legendX += legendItemWidth;
+        painter.setPen(QPen(Qt::darkGreen, 1));
+        painter.setBrush(QBrush(Qt::green));
+        painter.drawRect(legendX, legendY - 6, 15, 12);
+        painter.setPen(Qt::black);
+        painter.drawText(legendX + 20, legendY + 3, "Обслуживание");
+        
+        // Buffer
+        legendX += legendItemWidth;
+        painter.setPen(QPen(Qt::black, 1));
+        painter.setBrush(QBrush(QColor(255, 165, 0))); // orange
+        painter.drawRect(legendX, legendY - 6, 15, 12);
+        painter.setPen(Qt::black);
+        painter.drawText(legendX + 20, legendY + 3, "Буфер");
+        
+        // Refusal
+        legendX += legendItemWidth;
+        painter.setPen(QPen(Qt::red, 3));
+        painter.drawLine(legendX - 5, legendY - 5, legendX + 5, legendY + 5);
+        painter.drawLine(legendX - 5, legendY + 5, legendX + 5, legendY - 5);
+        painter.setPen(Qt::black);
+        painter.drawText(legendX + 20, legendY + 3, "Отказ");
+        
+        // Current time
+        legendX += legendItemWidth;
+        painter.setPen(QPen(Qt::blue, 3, Qt::DashLine));
+        painter.drawLine(legendX, legendY, legendX + 15, legendY);
+        painter.setPen(Qt::black);
+        painter.drawText(legendX + 20, legendY + 3, "Текущее время");
     }
     
 private:
@@ -135,10 +344,10 @@ MainWindow::MainWindow(QWidget* parent)
     // Default configuration
     config_.num_devices = 3;
     config_.buffer_capacity = 3;
-    config_.device_intensity = 0.8;
+    config_.device_intensity = 0.3;
     config_.max_arrivals = 1000;
     config_.seed = 52;
-    config_.sources = { {0, 1.0}, {1, 1.0}, {2, 1.0} };
+    config_.sources = { {0, 3.0}, {1, 4.0}, {2, 5.0} };
 
     auto* central = new QWidget(this);
 

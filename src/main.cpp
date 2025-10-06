@@ -5,13 +5,13 @@ auto main() -> int {
     SimulationConfig config;
     config.num_devices = 3;
     config.buffer_capacity = 3;
-    config.device_intensity = 0.8;  // μ - requests per time unit
+    config.device_intensity = 0.3;  // μ - requests per time unit
     config.max_arrivals = 1000;
     config.seed = 52;
     
-    config.sources.push_back({0, 1.0});
-    config.sources.push_back({1, 1.0});
-    config.sources.push_back({2, 1.0});
+    config.sources.push_back({0, 3.0});
+    config.sources.push_back({1, 4.0});
+    config.sources.push_back({2, 5.0});
     
     Simulator simulator(config);
     
