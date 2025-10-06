@@ -10,6 +10,7 @@ class Buffer {
 public:
     Buffer(size_t capacity);
     bool place_request(size_t request_id);
+    size_t displace_request();
     std::optional<size_t> take_request();
     bool is_empty() const;
     bool is_full() const;
@@ -17,7 +18,7 @@ public:
     size_t get_capacity() const;
 
 private:
-    void displace_request();
+
     std::vector<size_t> slots_;
     std::vector<bool> occupied_;
     size_t capacity_;

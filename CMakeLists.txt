@@ -14,5 +14,14 @@ else()
 endif()
 
 # Main executable
-add_executable(sim_cli src/main.cpp)
+add_executable(sim_cli 
+    src/main.cpp
+    src/core/Request.cpp
+    src/core/Event.cpp
+    src/core/Device.cpp
+    src/core/Buffer.cpp
+    src/core/EventCalendar.cpp
+    src/core/Metrics.cpp
+    src/core/Simulator.cpp
+)
 target_include_directories(sim_cli PRIVATE include)

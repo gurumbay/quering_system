@@ -2,41 +2,38 @@
 #define SIM_CORE_METRICS_H_
 
 #include <cstddef>
+#include <vector>
 
-/**
- * @brief Class to collect and store simulation metrics
- */
 class Metrics {
 public:
     Metrics();
     
-    // Getters for various metrics
-    double get_average_response_time() const;
-    double get_average_waiting_time() const;
-    double get_throughput() const;
-    double get_utilization() const;
-    size_t get_total_requests() const;
-    size_t get_completed_requests() const;
-    size_t get_dropped_requests() const;
+    void record_arrival(size_t source_id);
+    void record_refusal(size_t source_id);
+    void record_completion(size_t request_id, double time_in_system, double waiting_time, double service_time);
+    void record_device_busy_time(size_t device_id, double busy_time);
     
-    // Methods to update metrics
-    void record_request_arrival();
-    void record_request_completion(double response_time);
-    void record_request_drop();
-    void update_device_utilization(double busy_time);
-    void set_simulation_time(double time);
+    double get_refusal_probability() const;
+    double get_avg_time_in_system() const;
+    double get_avg_waiting_time() const;
+    double get_avg_service_time() const;
+    double get_device_utilization(size_t device_id, double total_time) const;
+    size_t get_arrived() const;
+    size_t get_refused() const;
+    size_t get_completed() const;
     
-    // Reset metrics
     void reset();
 
 private:
-    size_t total_requests_;
-    size_t completed_requests_;
-    size_t dropped_requests_;
-    double total_response_time_;
-    double total_waiting_time_;
-    double total_busy_time_;
-    double simulation_time_;
+    size_t arrived_;
+    size_t refused_;
+    size_t completed_;
+    double sum_time_in_system_;
+    double sum_waiting_time_;
+    double sum_service_time_;
+    std::vector<double> device_busy_times_;
+    std::vector<size_t> source_arrivals_;
+    std::vector<size_t> source_refusals_;
 };
 
 #endif // SIM_CORE_METRICS_H_
