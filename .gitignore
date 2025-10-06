@@ -1,5 +1,6 @@
 # Build directories
 build/
+build-*/
 out/
 dist/
 
@@ -9,11 +10,17 @@ CMakeCache.txt
 cmake-build-*/
 *.cmake
 !cmake/Modules/*.cmake
+CTestTestfile.cmake
+Testing/
+*_autogen/
 
 # IDE
 .vscode/
 .idea/
 *.user
+.vs/
+*.sln
+*.vcxproj*
 
 # OS
 Thumbs.db
@@ -27,6 +34,15 @@ Desktop.ini
 *.a
 *.so
 *.dylib
+*.obj
+*.o
+*.exp
+*.ilk
+*.pch
 
 # Logs
 *.log
+
+# Ninja
+.ninja_deps
+.ninja_log
