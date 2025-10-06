@@ -4,7 +4,7 @@
 
 Simulator::Simulator(const SimulationConfig& config) 
     : config_(config), buffer_(config.buffer_capacity), rng_(config.seed), 
-      service_dist_(config.service_rate), current_time_(0.0), next_request_id_(0), next_device_idx_(0), initialized_(false) {
+      service_dist_(config.device_intensity), current_time_(0.0), next_request_id_(0), next_device_idx_(0), initialized_(false) {
     devices_.reserve(config.num_devices);
     for (size_t i = 0; i < config.num_devices; ++i) {
         devices_.emplace_back(i);

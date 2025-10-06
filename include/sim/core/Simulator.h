@@ -12,13 +12,14 @@
 
 struct SourceConfig {
     size_t id;
-    double arrival_interval;
+    double arrival_interval;  // 1/λ - интервал между заявками (time units)
+    // λ = 1/arrival_interval - интенсивность источника (requests per time unit)
 };
 
 struct SimulationConfig {
     size_t num_devices = 2;
     size_t buffer_capacity = 8;
-    double service_rate = 1.5;
+    double device_intensity = 1.5;  // μ - интенсивность приборов (requests per time unit)
     size_t max_arrivals = 10000;
     double max_time = 1e9;
     uint32_t seed = 42;
