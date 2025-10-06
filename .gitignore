@@ -1,0 +1,32 @@
+# Build directories
+build/
+out/
+dist/
+
+# CMake files
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+*.cmake
+!cmake/Modules/*.cmake
+
+# IDE
+.vscode/
+.idea/
+*.user
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Binaries
+*.exe
+*.dll
+*.pdb
+*.lib
+*.a
+*.so
+*.dylib
+
+# Logs
+*.log
