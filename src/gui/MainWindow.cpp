@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "TimelineWidget.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QWidget>
@@ -11,333 +12,6 @@
 #include <QGroupBox>
 #include <QGridLayout>
 #include <QMessageBox>
-#include <QPainter>
-#include <QFontMetrics>
-#include <map>
-#include <set>
-#include <algorithm>
-#include <iostream>
-
-// Simple Timeline Widget
-class TimelineWidget : public QWidget {
-    Q_OBJECT
-public:
-    explicit TimelineWidget(QWidget* parent = nullptr) : QWidget(parent) {}
-    
-    void setSimulator(Simulator* sim, const SimulationConfig& config) {
-        simulator_ = sim;
-        config_ = config;
-        update();
-    }
-    
-protected:
-    void paintEvent(QPaintEvent* /*event*/) override {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        
-        // Clear background
-        painter.fillRect(rect(), Qt::white);
-        
-        if (!simulator_) {
-            painter.setPen(Qt::black);
-            painter.setFont(QFont("Arial", 14, QFont::Bold));
-            painter.drawText(rect(), Qt::AlignCenter, "Click 'Reset' to start simulation");
-            return;
-        }
-        
-        // Setup drawing parameters
-        int margin = 60;
-        int lineHeight = 30;
-        int startY = 50;
-        double currentTime = simulator_->get_current_time();
-        
-        // Calculate max time from events to show full intervals
-        Metrics m = simulator_->get_metrics();
-        const auto& events = m.get_timeline_events();
-        double maxEventTime = currentTime;
-        for (const auto& event : events) {
-            if (event.time > maxEventTime) {
-                maxEventTime = event.time;
-            }
-        }
-        double maxTime = std::max({currentTime + 5.0, maxEventTime + 2.0, 20.0});
-        
-        int width = this->width() - 2 * margin;
-        int height = this->height() - 2 * startY;
-        
-        // Draw time axis
-        painter.setPen(QPen(Qt::black, 2));
-        painter.drawLine(margin, startY, margin + width, startY);
-        painter.drawLine(margin, startY + height, margin + width, startY + height);
-        
-        // Draw time markers
-        painter.setFont(QFont("Arial", 8));
-        for (int i = 0; i <= 10; ++i) {
-            double time = (maxTime * i) / 10.0;
-            int x = margin + (width * i) / 10;
-            painter.drawLine(x, startY - 5, x, startY + 5);
-            painter.drawText(x - 10, startY - 10, QString::number(time, 'f', 1));
-        }
-        
-        // Draw component lines
-        int yPos = startY + 30;
-        int lineIndex = 0;
-        
-        // Sources
-        for (size_t i = 0; i < config_.sources.size(); ++i) {
-            painter.setPen(QPen(Qt::black, 2));
-            painter.drawLine(margin, yPos, margin + width, yPos);
-            
-            painter.setFont(QFont("Arial", 10, QFont::Bold));
-            painter.drawText(10, yPos + 5, QString("И%1").arg(i + 1));
-            
-            yPos += lineHeight;
-            lineIndex++;
-        }
-        
-        // Devices
-        for (size_t i = 0; i < config_.num_devices; ++i) {
-            painter.setPen(QPen(Qt::black, 2));
-            painter.drawLine(margin, yPos, margin + width, yPos);
-            
-            painter.setFont(QFont("Arial", 10, QFont::Bold));
-            painter.drawText(10, yPos + 5, QString("П%1").arg(i + 1));
-            
-            yPos += lineHeight;
-            lineIndex++;
-        }
-        
-        // Buffer slots
-        for (size_t i = 0; i < config_.buffer_capacity; ++i) {
-            painter.setPen(QPen(Qt::black, 2));
-            painter.drawLine(margin, yPos, margin + width, yPos);
-            
-            painter.setFont(QFont("Arial", 10, QFont::Bold));
-            painter.drawText(10, yPos + 5, QString("Б%1").arg(i + 1));
-            
-            yPos += lineHeight;
-            lineIndex++;
-        }
-        
-        // Refusal line
-        painter.setPen(QPen(Qt::red, 2));
-        painter.drawLine(margin, yPos, margin + width, yPos);
-        painter.setFont(QFont("Arial", 10, QFont::Bold));
-        painter.setPen(Qt::red);
-        painter.drawText(10, yPos + 5, "Отказ");
-        
-        // Draw events from timeline (m already declared above)
-        
-        // Track service intervals for each device
-        std::map<size_t, std::vector<std::pair<double, double>>> deviceServices; // device_id -> [(start, end)]
-        std::map<size_t, std::vector<std::pair<size_t, std::pair<double, double>>>> bufferOccupancy; // slot -> [(request_id, (start, end))]
-        
-        // Process events to build service intervals and buffer occupancy
-        for (const auto& event : events) {
-            if (event.type == "service_start") {
-                // Mark start of service
-                deviceServices[event.device_id].push_back({event.time, -1.0});
-            } else if (event.type == "service_end") {
-                // Find matching start and update end time
-                auto& services = deviceServices[event.device_id];
-                for (auto it = services.rbegin(); it != services.rend(); ++it) {
-                    if (it->second < 0) {
-                        it->second = event.time;
-                        break;
-                    }
-                }
-            } else if (event.type == "buffer_place") {
-                bufferOccupancy[event.buffer_slot].push_back({event.request_id, {event.time, -1.0}});
-                // std::cout << "GUI: buffer_place: req " << event.request_id << " -> slot " << event.buffer_slot << " at " << event.time << std::endl;
-            } else if (event.type == "buffer_take") {
-                // Find and close the buffer interval for this request in this slot
-                auto& slot_intervals = bufferOccupancy[event.buffer_slot];
-                bool found = false;
-                for (auto& [req_id, interval] : slot_intervals) {
-                    if (req_id == event.request_id && interval.second < 0) {
-                        interval.second = event.time;
-                        found = true;
-                        // std::cout << "GUI: buffer_take: req " << event.request_id << " from slot " << event.buffer_slot << " at " << event.time << " (closed interval)" << std::endl;
-                        break;
-                    }
-                }
-                // if (!found) {
-                //     std::cout << "GUI WARNING: buffer_take event for req " << event.request_id << " slot " << event.buffer_slot << " but no open interval found!" << std::endl;
-                // }
-            } else if (event.type == "buffer_displaced") {
-                // Find and close the buffer interval for displaced request in ANY slot
-                bool found = false;
-                for (auto& [slot, intervals] : bufferOccupancy) {
-                    for (auto& [req_id, interval] : intervals) {
-                        if (req_id == event.request_id && interval.second < 0) {
-                            interval.second = event.time;
-                            found = true;
-                            // std::cout << "GUI: buffer_displaced: req " << event.request_id << " from slot " << slot << " at " << event.time << std::endl;
-                            break;
-                        }
-                    }
-                    if (found) break;
-                }
-            }
-        }
-        
-        int bufferStartY = startY + 30 + (static_cast<int>(config_.sources.size()) + static_cast<int>(config_.num_devices)) * lineHeight;
-        int refusalY = startY + 30 + (static_cast<int>(config_.sources.size()) + static_cast<int>(config_.num_devices) + static_cast<int>(config_.buffer_capacity)) * lineHeight;
-        
-        // Draw all events
-        for (const auto& event : events) {
-            if (event.time > maxTime) continue;
-            
-            int eventX = margin + static_cast<int>((width * event.time) / maxTime);
-            
-            if (event.type == "arrival") {
-                // Draw arrival on source line
-                int eventY = startY + 30 + static_cast<int>(event.source_id) * lineHeight;
-                painter.setPen(QPen(Qt::red, 2));
-                painter.drawLine(eventX, eventY - 5, eventX, eventY + 5);
-                painter.drawEllipse(eventX - 3, eventY - 3, 6, 6);
-                
-            } else if (event.type == "refusal") {
-                // Draw refusal X
-                painter.setPen(QPen(Qt::red, 3));
-                painter.drawLine(eventX - 5, refusalY - 5, eventX + 5, refusalY + 5);
-                painter.drawLine(eventX - 5, refusalY + 5, eventX + 5, refusalY - 5);
-            }
-        }
-        
-        // Draw service intervals as rectangles
-        for (const auto& [device_id, services] : deviceServices) {
-            int deviceY = startY + 30 + static_cast<int>(config_.sources.size()) * lineHeight + static_cast<int>(device_id) * lineHeight;
-            
-            for (const auto& [start, end] : services) {
-                if (start > maxTime) continue;
-                
-                int x1 = margin + static_cast<int>((width * start) / maxTime);
-                int x2;
-                
-                if (end < 0) {
-                    // Service still in progress - draw to current time with dashed line
-                    x2 = margin + static_cast<int>((width * currentTime) / maxTime);
-                    painter.setPen(QPen(Qt::darkGreen, 1, Qt::DashLine));
-                    painter.setBrush(QBrush(Qt::green, Qt::Dense4Pattern));
-                } else {
-                    // Service completed - draw solid
-                    x2 = margin + static_cast<int>((width * std::min(end, maxTime)) / maxTime);
-                    painter.setPen(QPen(Qt::darkGreen, 1));
-                    painter.setBrush(QBrush(Qt::green));
-                }
-                
-                painter.drawRect(x1, deviceY - 8, x2 - x1, 16);
-            }
-        }
-        
-        // Draw buffer occupancy intervals
-        // First pass: check which requests were displaced
-        std::set<size_t> displaced_requests;
-        for (const auto& event : events) {
-            if (event.type == "buffer_displaced") {
-                displaced_requests.insert(event.request_id);
-            }
-        }
-        
-        for (const auto& [slot, intervals] : bufferOccupancy) {
-            int bufferY = bufferStartY + static_cast<int>(slot) * lineHeight;
-            
-            for (const auto& [req_id, interval] : intervals) {
-                double start = interval.first;
-                double end = interval.second;
-                
-                if (start > maxTime) continue;
-                
-                int x1 = margin + static_cast<int>((width * start) / maxTime);
-                int x2;
-                
-                bool was_displaced = displaced_requests.count(req_id) > 0;
-                
-                if (end < 0) {
-                    // Still in buffer - draw to current time with pattern
-                    x2 = margin + static_cast<int>((width * currentTime) / maxTime);
-                    painter.setPen(QPen(Qt::black, 1, Qt::DashLine));
-                    painter.setBrush(QBrush(QColor(255, 165, 0), Qt::Dense4Pattern)); // orange with pattern
-                } else {
-                    // Completed - draw solid or transparent if displaced
-                    x2 = margin + static_cast<int>((width * std::min(end, maxTime)) / maxTime);
-                    painter.setPen(QPen(Qt::black, 1));
-                    
-                    if (was_displaced) {
-                        // Displaced request - draw transparent/faded
-                        painter.setBrush(QBrush(QColor(255, 165, 0, 80))); // orange with alpha=80 (transparent)
-                    } else {
-                        // Successfully taken from buffer - draw solid
-                        painter.setBrush(QBrush(QColor(255, 165, 0))); // orange solid
-                    }
-                }
-                
-                painter.drawRect(x1, bufferY - 8, x2 - x1, 16);
-            }
-        }
-        
-        // Draw current time marker
-        if (currentTime > 0) {
-            int currentX = margin + (width * currentTime) / maxTime;
-            painter.setPen(QPen(Qt::blue, 3, Qt::DashLine));
-            painter.drawLine(currentX, startY, currentX, yPos);
-        }
-        
-        // Draw title
-        painter.setPen(Qt::black);
-        painter.setFont(QFont("Arial", 12, QFont::Bold));
-        painter.drawText(rect(), Qt::AlignTop | Qt::AlignHCenter, "Временная диаграмма системы массового обслуживания");
-        
-        // Draw legend at bottom
-        painter.setFont(QFont("Arial", 9));
-        int legendY = startY + height + 30;
-        int legendItemWidth = 150;
-        
-        // Arrival
-        int legendX = margin;
-        painter.setPen(QPen(Qt::red, 2));
-        painter.drawLine(legendX, legendY, legendX + 15, legendY);
-        painter.drawEllipse(legendX + 6, legendY - 3, 6, 6);
-        painter.setPen(Qt::black);
-        painter.drawText(legendX + 20, legendY + 3, "Прибытие");
-        
-        // Service
-        legendX += legendItemWidth;
-        painter.setPen(QPen(Qt::darkGreen, 1));
-        painter.setBrush(QBrush(Qt::green));
-        painter.drawRect(legendX, legendY - 6, 15, 12);
-        painter.setPen(Qt::black);
-        painter.drawText(legendX + 20, legendY + 3, "Обслуживание");
-        
-        // Buffer
-        legendX += legendItemWidth;
-        painter.setPen(QPen(Qt::black, 1));
-        painter.setBrush(QBrush(QColor(255, 165, 0))); // orange
-        painter.drawRect(legendX, legendY - 6, 15, 12);
-        painter.setPen(Qt::black);
-        painter.drawText(legendX + 20, legendY + 3, "Буфер");
-        
-        // Refusal
-        legendX += legendItemWidth;
-        painter.setPen(QPen(Qt::red, 3));
-        painter.drawLine(legendX - 5, legendY - 5, legendX + 5, legendY + 5);
-        painter.drawLine(legendX - 5, legendY + 5, legendX + 5, legendY - 5);
-        painter.setPen(Qt::black);
-        painter.drawText(legendX + 20, legendY + 3, "Отказ");
-        
-        // Current time
-        legendX += legendItemWidth;
-        painter.setPen(QPen(Qt::blue, 3, Qt::DashLine));
-        painter.drawLine(legendX, legendY, legendX + 15, legendY);
-        painter.setPen(Qt::black);
-        painter.drawText(legendX + 20, legendY + 3, "Текущее время");
-    }
-    
-private:
-    Simulator* simulator_ = nullptr;
-    SimulationConfig config_;
-};
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), simulator_(nullptr), running_(false) {
@@ -360,13 +34,13 @@ MainWindow::MainWindow(QWidget* parent)
     configLayout->addWidget(new QLabel("Devices:"), 0, 0);
     numDevicesSpin_ = new QSpinBox(this);
     numDevicesSpin_->setRange(1, 10);
-    numDevicesSpin_->setValue(config_.num_devices);
+    numDevicesSpin_->setValue(static_cast<int>(config_.num_devices));
     configLayout->addWidget(numDevicesSpin_, 0, 1);
 
     configLayout->addWidget(new QLabel("Buffer:"), 1, 0);
     bufferCapacitySpin_ = new QSpinBox(this);
     bufferCapacitySpin_->setRange(1, 100);
-    bufferCapacitySpin_->setValue(config_.buffer_capacity);
+    bufferCapacitySpin_->setValue(static_cast<int>(config_.buffer_capacity));
     configLayout->addWidget(bufferCapacitySpin_, 1, 1);
 
     configLayout->addWidget(new QLabel("Device μ:"), 2, 0);
@@ -379,14 +53,14 @@ MainWindow::MainWindow(QWidget* parent)
 
     configLayout->addWidget(new QLabel("Max arrivals:"), 3, 0);
     maxArrivalsSpin_ = new QSpinBox(this);
-    maxArrivalsSpin_->setRange(1, 100000);
-    maxArrivalsSpin_->setValue(config_.max_arrivals);
+    maxArrivalsSpin_->setRange(1, 10000);
+    maxArrivalsSpin_->setValue(static_cast<int>(config_.max_arrivals));
     configLayout->addWidget(maxArrivalsSpin_, 3, 1);
 
     configLayout->addWidget(new QLabel("Seed:"), 4, 0);
     seedSpin_ = new QSpinBox(this);
     seedSpin_->setRange(1, 999999);
-    seedSpin_->setValue(config_.seed);
+    seedSpin_->setValue(static_cast<int>(config_.seed));
     configLayout->addWidget(seedSpin_, 4, 1);
 
     // Sources table
@@ -394,14 +68,27 @@ MainWindow::MainWindow(QWidget* parent)
     sourcesTable_ = new QTableWidget(3, 2, this);
     sourcesTable_->setHorizontalHeaderLabels({"ID", "Interval"});
     sourcesTable_->horizontalHeader()->setStretchLastSection(true);
-    sourcesTable_->setMaximumHeight(120);
+    sourcesTable_->verticalHeader()->setVisible(false);
+    sourcesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    sourcesTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+    sourcesTable_->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    sourcesTable_->setMaximumHeight(140);
     
     // Fill sources table
     for (int i = 0; i < 3; ++i) {
-        sourcesTable_->setItem(i, 0, new QTableWidgetItem(QString::number(i)));
+        sourcesTable_->setItem(i, 0, new QTableWidgetItem(QString::number(i + 1)));
+        sourcesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         sourcesTable_->setItem(i, 1, new QTableWidgetItem(QString::number(config_.sources[i].arrival_interval)));
     }
     configLayout->addWidget(sourcesTable_, 6, 0, 1, 2);
+    
+    // Sources controls
+    btnAddSource_ = new QPushButton("Add source", this);
+    btnRemoveSource_ = new QPushButton("Remove source", this);
+    auto* sourcesBtns = new QHBoxLayout();
+    sourcesBtns->addWidget(btnAddSource_);
+    sourcesBtns->addWidget(btnRemoveSource_);
+    configLayout->addLayout(sourcesBtns, 7, 0, 1, 2);
 
     // Right panel: Control and metrics
     auto* controlGroup = new QGroupBox("Simulation Control", this);
@@ -413,24 +100,16 @@ MainWindow::MainWindow(QWidget* parent)
     btnPause_ = new QPushButton("Pause", this);
     btnRunToEnd_ = new QPushButton("Run to end", this);
     btnReset_ = new QPushButton("Reset", this);
-    btnPrintCsv_ = new QPushButton("Print CSV", this);
-    infoLabel_ = new QLabel("Metrics will appear here", this);
-    infoLabel_->setMaximumWidth(300);
-    infoLabel_->setWordWrap(true);
-    infoLabel_->setAlignment(Qt::AlignTop);
 
     controlLayout->addWidget(btnStep_);
     controlLayout->addWidget(btnRun_);
     controlLayout->addWidget(btnPause_);
     controlLayout->addWidget(btnRunToEnd_);
     controlLayout->addWidget(btnReset_);
-    controlLayout->addWidget(btnPrintCsv_);
-    controlLayout->addWidget(infoLabel_);
 
     // Timeline widget
     timelineWidget_ = new TimelineWidget(this);
-    timelineWidget_->setMinimumSize(500, 400);
-    timelineWidget_->setMaximumSize(800, 600);
+    // timelineWidget_->setMinimumSize(800, 600);
     
     // Create a simple horizontal layout
     auto* mainLayout = new QHBoxLayout(central);
@@ -440,13 +119,16 @@ MainWindow::MainWindow(QWidget* parent)
     auto* leftLayout = new QVBoxLayout(leftWidget);
     leftLayout->addWidget(configGroup);
     leftLayout->addWidget(controlGroup);
+    // Results group
+    setupResultsGroup();
+    leftLayout->addWidget(resultsGroup_);
     leftWidget->setMaximumWidth(320);
     
     // Right side: Timeline and metrics
     auto* rightWidget = new QWidget();
     auto* rightLayout = new QVBoxLayout(rightWidget);
-    rightLayout->addWidget(timelineWidget_);
-    rightLayout->addWidget(infoLabel_);
+    rightLayout->setSpacing(8);
+    rightLayout->addWidget(timelineWidget_, 1); // Timeline takes most space
     
     mainLayout->addWidget(leftWidget, 0);   // Fixed width left panel
     mainLayout->addWidget(rightWidget, 1);  // Expandable right panel
@@ -463,7 +145,8 @@ MainWindow::MainWindow(QWidget* parent)
     connect(btnPause_, &QPushButton::clicked, this, &MainWindow::onPause);
     connect(btnRunToEnd_, &QPushButton::clicked, this, &MainWindow::onRunToEnd);
     connect(btnReset_, &QPushButton::clicked, this, &MainWindow::onReset);
-    connect(btnPrintCsv_, &QPushButton::clicked, this, &MainWindow::onPrintCsv);
+    connect(btnAddSource_, &QPushButton::clicked, this, &MainWindow::onAddSource);
+    connect(btnRemoveSource_, &QPushButton::clicked, this, &MainWindow::onRemoveSource);
 
     timer_.setInterval(16);
     connect(&timer_, &QTimer::timeout, this, &MainWindow::onTick);
@@ -502,10 +185,75 @@ void MainWindow::rebuildSimulator() {
     updateTimeline();
 }
 
+void MainWindow::onAddSource() {
+    int row = sourcesTable_->rowCount();
+    sourcesTable_->insertRow(row);
+    sourcesTable_->setItem(row, 0, new QTableWidgetItem(QString::number(row)));
+    sourcesTable_->item(row, 0)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+    double defaultInterval = 3.0;
+    if (row > 0) {
+        bool ok = false;
+        double prev = sourcesTable_->item(row - 1, 1) ? sourcesTable_->item(row - 1, 1)->text().toDouble(&ok) : 0.0;
+        if (ok && prev > 0.0) defaultInterval = prev;
+    }
+    sourcesTable_->setItem(row, 1, new QTableWidgetItem(QString::number(defaultInterval)));
+    renumberSourcesTable();
+}
+
+void MainWindow::onRemoveSource() {
+    int row = sourcesTable_->currentRow();
+    if (row < 0) row = sourcesTable_->rowCount() - 1;
+    if (row >= 0 && sourcesTable_->rowCount() > 1) {
+        sourcesTable_->removeRow(row);
+        renumberSourcesTable();
+    }
+}
+
+void MainWindow::renumberSourcesTable() {
+    for (int i = 0; i < sourcesTable_->rowCount(); ++i) {
+        if (!sourcesTable_->item(i, 0)) {
+            sourcesTable_->setItem(i, 0, new QTableWidgetItem());
+        }
+        sourcesTable_->item(i, 0)->setText(QString::number(i));
+        sourcesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+    }
+}
+
+void MainWindow::setupResultsGroup() {
+    resultsGroup_ = new QGroupBox("Results", this);
+    auto* resultsLayout = new QGridLayout(resultsGroup_);
+    auto makeValueLabel = [this]() {
+        auto* l = new QLabel("—", this);
+        l->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        return l;
+    };
+    int r = 0;
+    resultsLayout->addWidget(new QLabel("Current Time:"), r, 0); currentTimeValue_ = makeValueLabel(); resultsLayout->addWidget(currentTimeValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("Arrived:"), r, 0);      arrivedValue_     = makeValueLabel(); resultsLayout->addWidget(arrivedValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("Refused:"), r, 0);      refusedValue_     = makeValueLabel(); resultsLayout->addWidget(refusedValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("Completed:"), r, 0);    completedValue_   = makeValueLabel(); resultsLayout->addWidget(completedValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("P_ref:"), r, 0);        prefValue_        = makeValueLabel(); resultsLayout->addWidget(prefValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("Avg Wait Time:"), r, 0);    avgWaitValue_   = makeValueLabel(); resultsLayout->addWidget(avgWaitValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("Avg Service Time:"), r, 0); avgServiceValue_= makeValueLabel(); resultsLayout->addWidget(avgServiceValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("Avg System Time:"), r, 0);  avgSystemValue_ = makeValueLabel(); resultsLayout->addWidget(avgSystemValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("λ (total):"), r, 0);     lambdaValue_      = makeValueLabel(); resultsLayout->addWidget(lambdaValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("μ (total):"), r, 0);     muValue_          = makeValueLabel(); resultsLayout->addWidget(muValue_, r++, 1);
+    resultsLayout->addWidget(new QLabel("ρ (load):"), r, 0);      rhoValue_         = makeValueLabel(); resultsLayout->addWidget(rhoValue_, r++, 1);
+}
 void MainWindow::updateUi() {
     if (!simulator_) {
         setWindowTitle("Queuing System Simulator - Not Started");
-        infoLabel_->setText("Configure parameters and click 'Reset' to start simulation");
+        currentTimeValue_->setText("—");
+        arrivedValue_->setText("0");
+        refusedValue_->setText("0");
+        completedValue_->setText("0");
+        prefValue_->setText("0.0000");
+        avgWaitValue_->setText("0.0000");
+        avgServiceValue_->setText("0.0000");
+        avgSystemValue_->setText("0.0000");
+        lambdaValue_->setText("0.0000");
+        muValue_->setText("0.0000");
+        rhoValue_->setText("0.0000");
         updateButtonStates();
         updateTimeline();
         return;
@@ -514,34 +262,25 @@ void MainWindow::updateUi() {
     Metrics m = simulator_->get_metrics();
     setWindowTitle(QString("Queuing System Simulator - Time: %1").arg(simulator_->get_current_time(), 0, 'f', 2));
     
-    QString infoText = QString(
-        "<h3>Simulation Results</h3>"
-        "<table border='1' cellpadding='5'>"
-        "<tr><td><b>Current Time:</b></td><td>%1</td></tr>"
-        "<tr><td><b>Arrived:</b></td><td>%2</td></tr>"
-        "<tr><td><b>Refused:</b></td><td>%3</td></tr>"
-        "<tr><td><b>Completed:</b></td><td>%4</td></tr>"
-        "<tr><td><b>P_ref:</b></td><td>%5</td></tr>"
-        "<tr><td><b>Avg Waiting Time:</b></td><td>%6</td></tr>"
-        "<tr><td><b>Avg Service Time:</b></td><td>%7</td></tr>"
-        "<tr><td><b>Avg Time in System:</b></td><td>%8</td></tr>"
-        "</table>"
-        "<h4>System Load (ρ):</h4>"
-        "<p>Total λ: %9<br>Total μ: %10<br>ρ = %11</p>"
-    )
-    .arg(simulator_->get_current_time(), 0, 'f', 2)
-    .arg(m.get_arrived())
-    .arg(m.get_refused())
-    .arg(m.get_completed())
-    .arg(QString::number(m.get_refusal_probability(), 'f', 3))
-    .arg(QString::number(m.get_avg_waiting_time(), 'f', 4))
-    .arg(QString::number(m.get_avg_service_time(), 'f', 4))
-    .arg(QString::number(m.get_avg_time_in_system(), 'f', 4))
-    .arg(QString::number(1.0/config_.sources[0].arrival_interval * config_.sources.size(), 'f', 2))
-    .arg(QString::number(config_.device_intensity * config_.num_devices, 'f', 2))
-    .arg(QString::number((1.0/config_.sources[0].arrival_interval * config_.sources.size()) / (config_.device_intensity * config_.num_devices), 'f', 2));
+    // Calculate correct lambda (sum of all source intensities)
+    double total_lambda = 0.0;
+    for (const auto& src : config_.sources) {
+        total_lambda += 1.0 / src.arrival_interval;
+    }
+    double total_mu = config_.device_intensity * config_.num_devices;
+    double rho = total_lambda / total_mu;
     
-    infoLabel_->setText(infoText);
+    currentTimeValue_->setText(QString::number(simulator_->get_current_time(), 'f', 2));
+    arrivedValue_->setText(QString::number(m.get_arrived()));
+    refusedValue_->setText(QString::number(m.get_refused()));
+    completedValue_->setText(QString::number(m.get_completed()));
+    prefValue_->setText(QString::number(m.get_refusal_probability(), 'f', 4));
+    avgWaitValue_->setText(QString::number(m.get_avg_waiting_time(), 'f', 4));
+    avgServiceValue_->setText(QString::number(m.get_avg_service_time(), 'f', 4));
+    avgSystemValue_->setText(QString::number(m.get_avg_time_in_system(), 'f', 4));
+    lambdaValue_->setText(QString::number(total_lambda, 'f', 4));
+    muValue_->setText(QString::number(total_mu, 'f', 4));
+    rhoValue_->setText(QString::number(rho, 'f', 4));
     updateButtonStates();
     updateTimeline();
 }
@@ -554,7 +293,6 @@ void MainWindow::updateButtonStates() {
         btnPause_->setEnabled(false);
         btnRunToEnd_->setEnabled(false);
         btnReset_->setEnabled(true);
-        btnPrintCsv_->setEnabled(false);
         
         // Configuration widgets enabled when no simulator
         numDevicesSpin_->setEnabled(true);
@@ -563,6 +301,8 @@ void MainWindow::updateButtonStates() {
         maxArrivalsSpin_->setEnabled(true);
         seedSpin_->setEnabled(true);
         sourcesTable_->setEnabled(true);
+        if (btnAddSource_) btnAddSource_->setEnabled(true);
+        if (btnRemoveSource_) btnRemoveSource_->setEnabled(sourcesTable_ && sourcesTable_->rowCount() > 1);
         return;
     }
 
@@ -584,9 +324,6 @@ void MainWindow::updateButtonStates() {
     // Reset: always enabled
     btnReset_->setEnabled(true);
     
-    // Print CSV: enabled when we have data
-    btnPrintCsv_->setEnabled(hasData);
-    
     // Configuration widgets: disabled when running or when simulation has started
     bool configEnabled = !running_ && !hasData;
     numDevicesSpin_->setEnabled(configEnabled);
@@ -595,6 +332,8 @@ void MainWindow::updateButtonStates() {
     maxArrivalsSpin_->setEnabled(configEnabled);
     seedSpin_->setEnabled(configEnabled);
     sourcesTable_->setEnabled(configEnabled);
+    if (btnAddSource_) btnAddSource_->setEnabled(configEnabled);
+    if (btnRemoveSource_) btnRemoveSource_->setEnabled(configEnabled && sourcesTable_->rowCount() > 1);
 }
 
 void MainWindow::onStep() {
@@ -637,6 +376,12 @@ void MainWindow::onTick() {
 
 void MainWindow::updateTimeline() {
     timelineWidget_->setSimulator(simulator_, config_);
+    timelineWidget_->updateCanvas();
+    
+    // Auto-scroll to current time when simulation is running or stepping
+    if (simulator_ && simulator_->get_current_time() > 0) {
+        timelineWidget_->scrollToCurrentTime();
+    }
 }
 
 void MainWindow::onReset() {
@@ -645,14 +390,3 @@ void MainWindow::onReset() {
     rebuildSimulator();
     updateUi();
 }
-
-void MainWindow::onPrintCsv() {
-    if (!simulator_) return;
-    Metrics m = simulator_->get_metrics();
-    printf("arrived,%zu\nrefused,%zu\ncompleted,%zu\np_ref,%.6f\navg_time_in_system,%.6f\navg_waiting,%.6f\navg_service,%.6f\n",
-        m.get_arrived(), m.get_refused(), m.get_completed(),
-        m.get_refusal_probability(), m.get_avg_time_in_system(),
-        m.get_avg_waiting_time(), m.get_avg_service_time());
-}
-
-#include "MainWindow.moc"

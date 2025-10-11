@@ -37,6 +37,8 @@ set(GUI_SOURCES
     src/gui/main_qt.cpp
     src/gui/MainWindow.cpp
     src/gui/MainWindow.h
+    src/gui/TimelineWidget.cpp
+    src/gui/TimelineWidget.h
     src/core/Request.cpp
     src/core/Event.cpp
     src/core/Device.cpp
