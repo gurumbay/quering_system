@@ -1,17 +1,9 @@
-#include "MainWindow.h"
-#include "TimelineWidget.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QWidget>
-#include <QPushButton>
-#include <QLabel>
-#include <QSpinBox>
-#include <QDoubleSpinBox>
-#include <QTableWidget>
 #include <QHeaderView>
-#include <QGroupBox>
 #include <QGridLayout>
-#include <QMessageBox>
+#include "MainWindow.h"
+#include "TimelineWidget.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), simulator_(nullptr), running_(false) {
@@ -36,20 +28,20 @@ MainWindow::MainWindow(QWidget* parent)
     numDevicesSpin_->setRange(1, 10);
     numDevicesSpin_->setValue(static_cast<int>(config_.num_devices));
     configLayout->addWidget(numDevicesSpin_, 0, 1);
-
-    configLayout->addWidget(new QLabel("Buffer:"), 1, 0);
-    bufferCapacitySpin_ = new QSpinBox(this);
-    bufferCapacitySpin_->setRange(1, 100);
-    bufferCapacitySpin_->setValue(static_cast<int>(config_.buffer_capacity));
-    configLayout->addWidget(bufferCapacitySpin_, 1, 1);
-
-    configLayout->addWidget(new QLabel("Device μ:"), 2, 0);
+    
+    configLayout->addWidget(new QLabel("Device intensity (μ):"), 1, 0);
     deviceIntensitySpin_ = new QDoubleSpinBox(this);
     deviceIntensitySpin_->setRange(0.01, 10.0);
     deviceIntensitySpin_->setDecimals(2);
     deviceIntensitySpin_->setSingleStep(0.1);
     deviceIntensitySpin_->setValue(config_.device_intensity);
-    configLayout->addWidget(deviceIntensitySpin_, 2, 1);
+    configLayout->addWidget(deviceIntensitySpin_, 1, 1);
+
+    configLayout->addWidget(new QLabel("Buffer:"), 2, 0);
+    bufferCapacitySpin_ = new QSpinBox(this);
+    bufferCapacitySpin_->setRange(1, 100);
+    bufferCapacitySpin_->setValue(static_cast<int>(config_.buffer_capacity));
+    configLayout->addWidget(bufferCapacitySpin_, 2, 1);
 
     configLayout->addWidget(new QLabel("Max arrivals:"), 3, 0);
     maxArrivalsSpin_ = new QSpinBox(this);
@@ -63,9 +55,11 @@ MainWindow::MainWindow(QWidget* parent)
     seedSpin_->setValue(static_cast<int>(config_.seed));
     configLayout->addWidget(seedSpin_, 4, 1);
 
-    // Sources table
-    configLayout->addWidget(new QLabel("Sources:"), 5, 0, 1, 2);
-    sourcesTable_ = new QTableWidget(3, 2, this);
+    // Sources block
+    auto* sourcesLayout = new QVBoxLayout();
+    sourcesLayout->addWidget(new QLabel("Sources:"));
+
+    sourcesTable_ = new QTableWidget(static_cast<int>(config_.sources.size()), 2, this);
     sourcesTable_->setHorizontalHeaderLabels({"ID", "Interval"});
     sourcesTable_->horizontalHeader()->setStretchLastSection(true);
     sourcesTable_->verticalHeader()->setVisible(false);
@@ -73,14 +67,14 @@ MainWindow::MainWindow(QWidget* parent)
     sourcesTable_->setSelectionMode(QAbstractItemView::SingleSelection);
     sourcesTable_->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
     sourcesTable_->setMaximumHeight(140);
+    sourcesLayout->addWidget(sourcesTable_);
     
     // Fill sources table
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < config_.sources.size(); ++i) {
         sourcesTable_->setItem(i, 0, new QTableWidgetItem(QString::number(i + 1)));
         sourcesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         sourcesTable_->setItem(i, 1, new QTableWidgetItem(QString::number(config_.sources[i].arrival_interval)));
     }
-    configLayout->addWidget(sourcesTable_, 6, 0, 1, 2);
     
     // Sources controls
     btnAddSource_ = new QPushButton("Add source", this);
@@ -88,9 +82,11 @@ MainWindow::MainWindow(QWidget* parent)
     auto* sourcesBtns = new QHBoxLayout();
     sourcesBtns->addWidget(btnAddSource_);
     sourcesBtns->addWidget(btnRemoveSource_);
-    configLayout->addLayout(sourcesBtns, 7, 0, 1, 2);
+    sourcesLayout->addLayout(sourcesBtns);
+    configLayout->addLayout(sourcesLayout, 5, 0, 1, 2);
+    configLayout->setRowStretch(configLayout->rowCount(), 1);
 
-    // Right panel: Control and metrics
+    // Left panel: Control and metrics
     auto* controlGroup = new QGroupBox("Simulation Control", this);
     controlGroup->setMaximumWidth(300);
     auto* controlLayout = new QVBoxLayout(controlGroup);
@@ -109,7 +105,6 @@ MainWindow::MainWindow(QWidget* parent)
 
     // Timeline widget
     timelineWidget_ = new TimelineWidget(this);
-    // timelineWidget_->setMinimumSize(800, 600);
     
     // Create a simple horizontal layout
     auto* mainLayout = new QHBoxLayout(central);
@@ -124,7 +119,7 @@ MainWindow::MainWindow(QWidget* parent)
     leftLayout->addWidget(resultsGroup_);
     leftWidget->setMaximumWidth(320);
     
-    // Right side: Timeline and metrics
+    // Right side: Timeline
     auto* rightWidget = new QWidget();
     auto* rightLayout = new QVBoxLayout(rightWidget);
     rightLayout->setSpacing(8);
@@ -214,7 +209,7 @@ void MainWindow::renumberSourcesTable() {
         if (!sourcesTable_->item(i, 0)) {
             sourcesTable_->setItem(i, 0, new QTableWidgetItem());
         }
-        sourcesTable_->item(i, 0)->setText(QString::number(i));
+        sourcesTable_->item(i, 0)->setText(QString::number(i+1));
         sourcesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
     }
 }
@@ -275,12 +270,12 @@ void MainWindow::updateUi() {
     refusedValue_->setText(QString::number(m.get_refused()));
     completedValue_->setText(QString::number(m.get_completed()));
     prefValue_->setText(QString::number(m.get_refusal_probability(), 'f', 4));
-    avgWaitValue_->setText(QString::number(m.get_avg_waiting_time(), 'f', 4));
-    avgServiceValue_->setText(QString::number(m.get_avg_service_time(), 'f', 4));
-    avgSystemValue_->setText(QString::number(m.get_avg_time_in_system(), 'f', 4));
-    lambdaValue_->setText(QString::number(total_lambda, 'f', 4));
-    muValue_->setText(QString::number(total_mu, 'f', 4));
-    rhoValue_->setText(QString::number(rho, 'f', 4));
+    avgWaitValue_->setText(QString::number(m.get_avg_waiting_time(), 'f', 3));
+    avgServiceValue_->setText(QString::number(m.get_avg_service_time(), 'f', 3));
+    avgSystemValue_->setText(QString::number(m.get_avg_time_in_system(), 'f', 3));
+    lambdaValue_->setText(QString::number(total_lambda, 'f', 3));
+    muValue_->setText(QString::number(total_mu, 'f', 3));
+    rhoValue_->setText(QString::number(rho, 'f', 3));
     updateButtonStates();
     updateTimeline();
 }
@@ -301,8 +296,8 @@ void MainWindow::updateButtonStates() {
         maxArrivalsSpin_->setEnabled(true);
         seedSpin_->setEnabled(true);
         sourcesTable_->setEnabled(true);
-        if (btnAddSource_) btnAddSource_->setEnabled(true);
-        if (btnRemoveSource_) btnRemoveSource_->setEnabled(sourcesTable_ && sourcesTable_->rowCount() > 1);
+        btnAddSource_->setEnabled(true);
+        btnRemoveSource_->setEnabled(sourcesTable_ && sourcesTable_->rowCount() > 1);
         return;
     }
 
@@ -332,8 +327,8 @@ void MainWindow::updateButtonStates() {
     maxArrivalsSpin_->setEnabled(configEnabled);
     seedSpin_->setEnabled(configEnabled);
     sourcesTable_->setEnabled(configEnabled);
-    if (btnAddSource_) btnAddSource_->setEnabled(configEnabled);
-    if (btnRemoveSource_) btnRemoveSource_->setEnabled(configEnabled && sourcesTable_->rowCount() > 1);
+    btnAddSource_->setEnabled(configEnabled);
+    btnRemoveSource_->setEnabled(configEnabled && sourcesTable_->rowCount() > 1);
 }
 
 void MainWindow::onStep() {
@@ -362,6 +357,13 @@ void MainWindow::onRunToEnd() {
     updateUi();
 }
 
+void MainWindow::onReset() {
+    running_ = false;
+    timer_.stop();
+    rebuildSimulator();
+    updateUi();
+}
+
 void MainWindow::onTick() {
     if (!simulator_) return;
     if (simulator_->is_finished()) {
@@ -382,11 +384,4 @@ void MainWindow::updateTimeline() {
     if (simulator_ && simulator_->get_current_time() > 0) {
         timelineWidget_->scrollToCurrentTime();
     }
-}
-
-void MainWindow::onReset() {
-    running_ = false;
-    timer_.stop();
-    rebuildSimulator();
-    updateUi();
 }

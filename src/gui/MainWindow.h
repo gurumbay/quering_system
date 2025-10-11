@@ -2,19 +2,15 @@
 
 #include <QMainWindow>
 #include <QTimer>
+#include <QLabel>
+#include <QWidget>
+#include <QSpinBox>
+#include <QGroupBox>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QDoubleSpinBox>
 #include "sim/core/Simulator.h"
-
-// Forward declarations for Qt widgets
-class QLabel;
-class QSpinBox;
-class QTableWidget;
-class QDoubleSpinBox;
-class QPushButton;
-class QGroupBox;
-class QWidget;
-
-// Forward declaration for timeline widget
-class TimelineWidget;
+#include "TimelineWidget.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -22,6 +18,9 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
 
 private slots:
+    void onAddSource();
+    void onRemoveSource();
+
     void onStep();
     void onRun();
     void onPause();
@@ -77,8 +76,4 @@ private:
     // Helpers
     void renumberSourcesTable();
     void setupResultsGroup();
-
-private slots:
-    void onAddSource();
-    void onRemoveSource();
 };

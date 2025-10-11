@@ -1,14 +1,10 @@
-#include "TimelineWidget.h"
+#include <cmath>
+#include <algorithm>
 #include <QPainter>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QLabel>
-#include <QPushButton>
-#include <QSlider>
-#include <QWheelEvent>
 #include <QScrollBar>
-#include <cmath>
-#include <algorithm>
+#include "TimelineWidget.h"
 
 // TimelineCanvas implementation
 TimelineCanvas::TimelineCanvas(QWidget* parent) 
@@ -34,16 +30,16 @@ void TimelineCanvas::updateSize() {
 }
 
 void TimelineCanvas::setZoomLevel(double zoom) {
-    zoomLevel_ = std::max(0.1, std::min(zoom, 10.0)); // Limit zoom range 0.1x to 10x
+    zoomLevel_ = std::max(0.1, std::min(zoom, 10.0));   // Limit zoom range 0.1x to 10x
     updateSize();
-    emit zoomChanged(zoomLevel_); // Notify widget that zoom changed
+    emit zoomChanged(zoomLevel_);
 }
 
 void TimelineCanvas::wheelEvent(QWheelEvent* event) {
-    // Ctrl + Wheel = Zoom (like GTKwave)
+    // Ctrl + Wheel = Zoom
     if (event->modifiers() & Qt::ControlModifier) {
         double delta = event->angleDelta().y() / 120.0; // Standard wheel step
-        double zoomFactor = std::pow(1.15, delta); // 15% per step
+        double zoomFactor = std::pow(1.15, delta);      // 15% per step
         setZoomLevel(zoomLevel_ * zoomFactor);
         event->accept();
     } else {
@@ -176,7 +172,6 @@ void TimelineCanvas::paintEvent(QPaintEvent* /*event*/) {
         return;
     }
     
-    // Draw timeline
     drawTimeline(painter);
 }
 
@@ -620,17 +615,12 @@ void TimelineWidget::onZoomOut() {
     updateZoomLabel();
 }
 
-
-
 void TimelineWidget::updateZoomLabel() {
     double zoom = canvas_->getZoomLevel();
     zoomLabel_->setText(QString("%1%").arg(static_cast<int>(zoom * 100)));
 }
 
-
-void TimelineWidget::onCanvasZoomChanged(double zoom) {
+void TimelineWidget::onCanvasZoomChanged(double /* zoom */) {
     // Update UI when canvas zoom changes
     updateZoomLabel();
 }
-
-

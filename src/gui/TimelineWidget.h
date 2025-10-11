@@ -1,13 +1,13 @@
 #pragma once
 
-#include <QWidget>
-#include <QScrollArea>
 #include <map>
 #include <set>
+#include <QLabel>
+#include <QWidget>
+#include <QPushButton>
+#include <QScrollArea>
+#include <QWheelEvent>
 #include "sim/core/Simulator.h"
-
-// Forward declarations
-class QWheelEvent;
 
 // Canvas that does the actual drawing
 class TimelineCanvas : public QWidget {
@@ -51,11 +51,6 @@ public:
     static constexpr int PIXELS_PER_TIME_UNIT = 50;
 };
 
-// Forward declarations
-class QPushButton;
-class QSlider;
-class QLabel;
-
 // Main timeline widget with controls and scroll area
 class TimelineWidget : public QWidget {
     Q_OBJECT
@@ -80,6 +75,4 @@ private:
     QPushButton* btnZoomIn_;
     QPushButton* btnZoomOut_;
     QLabel* zoomLabel_;
-    
 };
-
