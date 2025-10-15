@@ -16,12 +16,10 @@ std::optional<size_t> Buffer::place_request(size_t request_id) {
   }
 
   // D10Z3: Find first free slot starting from place_start_
-  for (size_t i = 0; i < capacity_; ++i) {
-    size_t idx = (place_start_ + i) % capacity_;
+  for (size_t idx = 0; idx < capacity_; ++idx) {
     if (!occupied_[idx]) {
       slots_[idx] = request_id;
       occupied_[idx] = true;
-      place_start_ = (idx + 1) % capacity_;  // Rotate start pointer
       ++size_;
       return idx;  // Return slot index
     }
