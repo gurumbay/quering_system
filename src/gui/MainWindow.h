@@ -6,10 +6,12 @@
 #include <QMainWindow>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QTableWidget>
 #include <QTimer>
 #include <QWidget>
 
+#include "AnalyticsWidget.h"
 #include "EventCalendarWidget.h"
 #include "TimelineWidget.h"
 #include "sim/core/Simulator.h"
@@ -72,11 +74,17 @@ class MainWindow : public QMainWindow {
   QPushButton* btnRunToEnd_;
   QPushButton* btnReset_;
 
+  // Tab widget for timeline/analytics
+  QTabWidget* tabWidget_;
+
   // Timeline widget
   TimelineWidget* timelineWidget_;
 
   // Event calendar widget
   EventCalendarWidget* eventCalendarWidget_;
+
+  // Analytics widget
+  AnalyticsWidget* analyticsWidget_;
 
   // Helpers
   void renumberSourcesTable();

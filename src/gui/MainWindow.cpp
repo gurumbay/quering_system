@@ -5,6 +5,7 @@
 #include <QHeaderView>
 #include <QVBoxLayout>
 
+#include "AnalyticsWidget.h"
 #include "EventCalendarWidget.h"
 #include "TimelineWidget.h"
 
@@ -117,6 +118,24 @@ MainWindow::MainWindow(QWidget* parent)
   // Event calendar widget
   eventCalendarWidget_ = new EventCalendarWidget(this);
 
+  // Analytics widget
+  analyticsWidget_ = new AnalyticsWidget(this);
+
+  // Create tab widget for timeline and analytics
+  tabWidget_ = new QTabWidget(this);
+  
+  // Tab 1: Timeline and Event Calendar
+  auto* timelineTabWidget = new QWidget();
+  auto* timelineTabLayout = new QVBoxLayout(timelineTabWidget);
+  timelineTabLayout->setContentsMargins(0, 0, 0, 0);
+  timelineTabLayout->setSpacing(8);
+  timelineTabLayout->addWidget(timelineWidget_, 1);
+  timelineTabLayout->addWidget(eventCalendarWidget_, 0);
+  tabWidget_->addTab(timelineTabWidget, "Timeline");
+
+  // Tab 2: Analytics
+  tabWidget_->addTab(analyticsWidget_, "Analytics");
+
   // Create a simple horizontal layout
   auto* mainLayout = new QHBoxLayout(central);
 
@@ -130,15 +149,9 @@ MainWindow::MainWindow(QWidget* parent)
   leftLayout->addWidget(resultsGroup_);
   leftWidget->setMaximumWidth(320);
 
-  // Right side: Timeline and Event Calendar
-  auto* rightWidget = new QWidget();
-  auto* rightLayout = new QVBoxLayout(rightWidget);
-  rightLayout->setSpacing(8);
-  rightLayout->addWidget(timelineWidget_, 1);  // Timeline takes most space
-  rightLayout->addWidget(eventCalendarWidget_, 0);  // Event calendar fixed size
-
+  // Right side: Tab widget
   mainLayout->addWidget(leftWidget, 0);   // Fixed width left panel
-  mainLayout->addWidget(rightWidget, 1);  // Expandable right panel
+  mainLayout->addWidget(tabWidget_, 1);   // Expandable right panel with tabs
 
   setCentralWidget(central);
 
@@ -294,6 +307,9 @@ void MainWindow::updateUi() {
     if (eventCalendarWidget_) {
       eventCalendarWidget_->updateState(nullptr, config_);
     }
+    if (analyticsWidget_) {
+      analyticsWidget_->updateAnalytics(nullptr, config_);
+    }
     return;
   }
 
@@ -325,6 +341,9 @@ void MainWindow::updateUi() {
   updateTimeline();
   if (eventCalendarWidget_) {
     eventCalendarWidget_->updateState(simulator_, config_);
+  }
+  if (analyticsWidget_) {
+    analyticsWidget_->updateAnalytics(simulator_, config_);
   }
 }
 

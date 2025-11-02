@@ -26,12 +26,29 @@ void Metrics::record_refusal(size_t source_id) {
   ++source_refusals_[source_id];
 }
 
-void Metrics::record_completion(size_t request_id, double time_in_system,
-                                double waiting_time, double service_time) {
+void Metrics::record_completion(size_t request_id, size_t source_id,
+                                double time_in_system, double waiting_time,
+                                double service_time) {
   ++completed_;
   sum_time_in_system_ += time_in_system;
   sum_waiting_time_ += waiting_time;
   sum_service_time_ += service_time;
+
+  // Per-source tracking
+  if (source_id >= source_sum_time_in_system_.size()) {
+    source_sum_time_in_system_.resize(source_id + 1, 0.0);
+    source_sum_waiting_time_.resize(source_id + 1, 0.0);
+    source_sum_service_time_.resize(source_id + 1, 0.0);
+    source_sum_sq_waiting_time_.resize(source_id + 1, 0.0);
+    source_sum_sq_service_time_.resize(source_id + 1, 0.0);
+    source_completions_.resize(source_id + 1, 0);
+  }
+  source_sum_time_in_system_[source_id] += time_in_system;
+  source_sum_waiting_time_[source_id] += waiting_time;
+  source_sum_service_time_[source_id] += service_time;
+  source_sum_sq_waiting_time_[source_id] += waiting_time * waiting_time;
+  source_sum_sq_service_time_[source_id] += service_time * service_time;
+  ++source_completions_[source_id];
 }
 
 void Metrics::record_device_busy_time(size_t device_id, double busy_time) {
@@ -84,6 +101,65 @@ void Metrics::reset() {
   source_arrivals_.clear();
   source_refusals_.clear();
   timeline_events_.clear();
+  source_sum_time_in_system_.clear();
+  source_sum_waiting_time_.clear();
+  source_sum_service_time_.clear();
+  source_sum_sq_waiting_time_.clear();
+  source_sum_sq_service_time_.clear();
+  source_completions_.clear();
+}
+
+size_t Metrics::get_source_arrivals(size_t source_id) const {
+  if (source_id >= source_arrivals_.size()) return 0;
+  return source_arrivals_[source_id];
+}
+
+double Metrics::get_source_refusal_probability(size_t source_id) const {
+  size_t arrivals = get_source_arrivals(source_id);
+  if (arrivals == 0) return 0.0;
+  size_t refusals = (source_id < source_refusals_.size()) ? source_refusals_[source_id] : 0;
+  return static_cast<double>(refusals) / arrivals;
+}
+
+double Metrics::get_source_avg_time_in_system(size_t source_id) const {
+  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+    return 0.0;
+  }
+  return source_sum_time_in_system_[source_id] / source_completions_[source_id];
+}
+
+double Metrics::get_source_avg_waiting_time(size_t source_id) const {
+  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+    return 0.0;
+  }
+  return source_sum_waiting_time_[source_id] / source_completions_[source_id];
+}
+
+double Metrics::get_source_avg_service_time(size_t source_id) const {
+  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+    return 0.0;
+  }
+  return source_sum_service_time_[source_id] / source_completions_[source_id];
+}
+
+double Metrics::get_source_variance_waiting_time(size_t source_id) const {
+  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+    return 0.0;
+  }
+  size_t n = source_completions_[source_id];
+  double mean = source_sum_waiting_time_[source_id] / n;
+  double mean_sq = source_sum_sq_waiting_time_[source_id] / n;
+  return mean_sq - mean * mean;
+}
+
+double Metrics::get_source_variance_service_time(size_t source_id) const {
+  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+    return 0.0;
+  }
+  size_t n = source_completions_[source_id];
+  double mean = source_sum_service_time_[source_id] / n;
+  double mean_sq = source_sum_sq_service_time_[source_id] / n;
+  return mean_sq - mean * mean;
 }
 
 void Metrics::record_timeline_event(const TimelineEvent& event) {

@@ -40,6 +40,7 @@ class Simulator {
                             double end_time);
   Metrics get_metrics() const;
   double get_current_time() const;
+  double get_total_simulation_time() const;
 
   // State query methods for event calendar
   std::vector<bool> get_device_states() const;
@@ -67,6 +68,7 @@ class Simulator {
   bool initialized_;
   std::vector<double> source_next_event_times_;
   std::vector<double> device_next_event_times_;
+  double end_time_;
 };
 
 #endif  // SIM_CORE_SIMULATOR_H_

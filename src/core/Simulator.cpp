@@ -20,6 +20,7 @@ Simulator::Simulator(const SimulationConfig& config)
   source_arrivals_count_.resize(config.sources.size(), 0);
   source_next_event_times_.resize(config.sources.size(), -1.0);
   device_next_event_times_.resize(config.num_devices, -1.0);
+  end_time_ = 0.0;
 
   // Schedule initial arrivals for all sources
   for (size_t i = 0; i < config.sources.size(); ++i) {
@@ -53,8 +54,8 @@ void Simulator::run() {
         break;
     }
 
-    if (metrics_.get_arrived() >= config_.max_arrivals &&
-        calendar_.is_empty() && buffer_.is_empty()) {
+    // Check if simulation is finished (all arrivals generated and system empty)
+    if (is_finished()) {
       break;
     }
   }
@@ -181,13 +182,16 @@ void Simulator::handle_service_end(size_t device_id) {
     double waiting_time = req.get_service_start_time() - req.get_arrival_time();
     double service_time = current_time_ - req.get_service_start_time();
 
-    metrics_.record_completion(finished_id, time_in_system, waiting_time,
-                               service_time);
+    metrics_.record_completion(finished_id, req.get_source_id(), time_in_system,
+                               waiting_time, service_time);
     metrics_.record_device_busy_time(device_id, service_time);
 
     // Record service end event
     metrics_.record_timeline_event({current_time_, "service_end", finished_id,
                                     req.get_source_id(), device_id, 0, ""});
+
+    // Update end time - this is when this request left the system
+    end_time_ = current_time_;
   }
 
   // D2B3: Check buffer for waiting requests
@@ -245,6 +249,16 @@ Metrics Simulator::get_metrics() const { return metrics_; }
 
 double Simulator::get_current_time() const { return current_time_; }
 
+double Simulator::get_total_simulation_time() const {
+  // Return current_time_ if simulation is active (still has events or buffer not empty),
+  // otherwise return end_time_ (time when last request completed)
+  if (!is_finished()) {
+    return current_time_;
+  }
+  // Simulation finished - return the time when last request completed
+  return (end_time_ > 0.0) ? end_time_ : current_time_;
+}
+
 void Simulator::print_state() const {
   std::cout << "\n=== SIMULATION STATE ===" << std::endl;
   std::cout << "Time: " << current_time_ << std::endl;
@@ -271,9 +285,40 @@ void Simulator::print_state() const {
 }
 
 bool Simulator::is_finished() const {
-  return calendar_.is_empty() ||
-         metrics_.get_arrived() >= config_.max_arrivals ||
-         current_time_ > config_.max_time;
+  // Check if max time exceeded
+  if (current_time_ > config_.max_time) {
+    return true;
+  }
+  
+  // Check if max arrivals reached
+  bool max_arrivals_reached = metrics_.get_arrived() >= config_.max_arrivals;
+  
+  if (!max_arrivals_reached) {
+    return false;  // Still generating arrivals
+  }
+  
+  // Max arrivals reached - check if system is empty
+  // System is finished when:
+  // 1. Calendar is empty (no future events)
+  // 2. Buffer is empty (no waiting requests)
+  // 3. All devices are free (no requests being serviced)
+  if (!calendar_.is_empty()) {
+    return false;  // Still have events to process
+  }
+  
+  if (!buffer_.is_empty()) {
+    return false;  // Still have requests in buffer
+  }
+  
+  // Check if all devices are free
+  for (const auto& device : devices_) {
+    if (!device.is_free()) {
+      return false;  // Still have requests being serviced
+    }
+  }
+  
+  // All conditions met - simulation finished
+  return true;
 }
 
 std::vector<bool> Simulator::get_device_states() const {
