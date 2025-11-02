@@ -41,6 +41,12 @@ class Simulator {
   Metrics get_metrics() const;
   double get_current_time() const;
 
+  // State query methods for event calendar
+  std::vector<bool> get_device_states() const;
+  std::vector<double> get_source_next_event_times() const;
+  std::vector<double> get_device_next_event_times() const;
+  std::vector<bool> get_source_states() const;
+
   // Debug methods
   void print_state() const;
   bool is_finished() const;
@@ -59,6 +65,8 @@ class Simulator {
   SimulationConfig config_;
   std::vector<size_t> source_arrivals_count_;
   bool initialized_;
+  std::vector<double> source_next_event_times_;
+  std::vector<double> device_next_event_times_;
 };
 
 #endif  // SIM_CORE_SIMULATOR_H_

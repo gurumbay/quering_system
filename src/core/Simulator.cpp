@@ -18,12 +18,15 @@ Simulator::Simulator(const SimulationConfig& config)
   }
 
   source_arrivals_count_.resize(config.sources.size(), 0);
+  source_next_event_times_.resize(config.sources.size(), -1.0);
+  device_next_event_times_.resize(config.num_devices, -1.0);
 
   // Schedule initial arrivals for all sources
   for (size_t i = 0; i < config.sources.size(); ++i) {
-    Event arrival_event(config.sources[i].arrival_interval, EventType::arrival,
-                        0, 0, i);
+    double arrival_time = config.sources[i].arrival_interval;
+    Event arrival_event(arrival_time, EventType::arrival, 0, 0, i);
     calendar_.schedule(arrival_event);
+    source_next_event_times_[i] = arrival_time;
   }
 }
 
@@ -34,11 +37,18 @@ void Simulator::run() {
 
     if (current_time_ > config_.max_time) break;
 
+    // Clear tracking for the event that just fired
     switch (event.get_type()) {
       case EventType::arrival:
+        if (event.get_source_id() < source_next_event_times_.size()) {
+          source_next_event_times_[event.get_source_id()] = -1.0;
+        }
         handle_arrival(event.get_source_id());
         break;
       case EventType::service_end:
+        if (event.get_device_id() < device_next_event_times_.size()) {
+          device_next_event_times_[event.get_device_id()] = -1.0;
+        }
         handle_service_end(event.get_device_id());
         break;
     }
@@ -55,11 +65,18 @@ void Simulator::step() {
     Event event = calendar_.pop_next();
     current_time_ = event.get_time();
 
+    // Clear tracking for the event that just fired
     switch (event.get_type()) {
       case EventType::arrival:
+        if (event.get_source_id() < source_next_event_times_.size()) {
+          source_next_event_times_[event.get_source_id()] = -1.0;
+        }
         handle_arrival(event.get_source_id());
         break;
       case EventType::service_end:
+        if (event.get_device_id() < device_next_event_times_.size()) {
+          device_next_event_times_[event.get_device_id()] = -1.0;
+        }
         handle_service_end(event.get_device_id());
         break;
     }
@@ -144,10 +161,13 @@ void Simulator::handle_arrival(size_t source_id) {
 
     // Schedule next arrival for this source only
     if (metrics_.get_arrived() < config_.max_arrivals) {
-      Event next_arrival(
-          current_time_ + config_.sources[source_id].arrival_interval,
-          EventType::arrival, 0, 0, source_id);
+      double next_arrival_time =
+          current_time_ + config_.sources[source_id].arrival_interval;
+      Event next_arrival(next_arrival_time, EventType::arrival, 0, 0, source_id);
       calendar_.schedule(next_arrival);
+      source_next_event_times_[source_id] = next_arrival_time;
+    } else {
+      source_next_event_times_[source_id] = -1.0;
     }
   }
 }
@@ -192,7 +212,13 @@ void Simulator::handle_service_end(size_t device_id) {
       metrics_.record_timeline_event(
           {current_time_, "service_start", request_id,
            requests_[request_id].get_source_id(), device_id, 0, ""});
+    } else {
+      // No more requests, clear next event time
+      device_next_event_times_[device_id] = -1.0;
     }
+  } else {
+    // Buffer empty, no next service event
+    device_next_event_times_[device_id] = -1.0;
   }
 }
 
@@ -212,6 +238,7 @@ void Simulator::schedule_service_end(size_t device_id, size_t request_id,
   Event service_end_event(end_time, EventType::service_end, request_id,
                           device_id);
   calendar_.schedule(service_end_event);
+  device_next_event_times_[device_id] = end_time;
 }
 
 Metrics Simulator::get_metrics() const { return metrics_; }
@@ -247,4 +274,30 @@ bool Simulator::is_finished() const {
   return calendar_.is_empty() ||
          metrics_.get_arrived() >= config_.max_arrivals ||
          current_time_ > config_.max_time;
+}
+
+std::vector<bool> Simulator::get_device_states() const {
+  std::vector<bool> states;
+  states.reserve(devices_.size());
+  for (const auto& device : devices_) {
+    states.push_back(!device.is_free());  // active = busy
+  }
+  return states;
+}
+
+std::vector<double> Simulator::get_source_next_event_times() const {
+  return source_next_event_times_;
+}
+
+std::vector<double> Simulator::get_device_next_event_times() const {
+  return device_next_event_times_;
+}
+
+std::vector<bool> Simulator::get_source_states() const {
+  std::vector<bool> states;
+  states.reserve(source_next_event_times_.size());
+  for (double next_time : source_next_event_times_) {
+    states.push_back(next_time >= 0.0);  // active = has scheduled event
+  }
+  return states;
 }

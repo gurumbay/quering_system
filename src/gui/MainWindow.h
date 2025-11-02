@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <QWidget>
 
+#include "EventCalendarWidget.h"
 #include "TimelineWidget.h"
 #include "sim/core/Simulator.h"
 
@@ -73,6 +74,9 @@ class MainWindow : public QMainWindow {
 
   // Timeline widget
   TimelineWidget* timelineWidget_;
+
+  // Event calendar widget
+  EventCalendarWidget* eventCalendarWidget_;
 
   // Helpers
   void renumberSourcesTable();

@@ -2,8 +2,6 @@
 
 #include <algorithm>
 
-// NEED TO TEST PLACE/DISPLACE AND TAKE POLICY !!!!!
-
 Buffer::Buffer(size_t capacity)
     : capacity_(capacity), size_(0), place_start_(0), select_start_(0) {
   slots_.resize(capacity_);

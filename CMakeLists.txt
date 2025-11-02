@@ -39,6 +39,8 @@ set(GUI_SOURCES
     src/gui/main_qt.cpp
     src/gui/MainWindow.cpp
     src/gui/MainWindow.h
+    src/gui/EventCalendarWidget.cpp
+    src/gui/EventCalendarWidget.h
     src/gui/TimelineWidget.cpp
     src/gui/TimelineWidget.h
     src/core/Request.cpp

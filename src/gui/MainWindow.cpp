@@ -5,6 +5,7 @@
 #include <QHeaderView>
 #include <QVBoxLayout>
 
+#include "EventCalendarWidget.h"
 #include "TimelineWidget.h"
 
 MainWindow::MainWindow(QWidget* parent)
@@ -113,6 +114,9 @@ MainWindow::MainWindow(QWidget* parent)
   // Timeline widget
   timelineWidget_ = new TimelineWidget(this);
 
+  // Event calendar widget
+  eventCalendarWidget_ = new EventCalendarWidget(this);
+
   // Create a simple horizontal layout
   auto* mainLayout = new QHBoxLayout(central);
 
@@ -126,11 +130,12 @@ MainWindow::MainWindow(QWidget* parent)
   leftLayout->addWidget(resultsGroup_);
   leftWidget->setMaximumWidth(320);
 
-  // Right side: Timeline
+  // Right side: Timeline and Event Calendar
   auto* rightWidget = new QWidget();
   auto* rightLayout = new QVBoxLayout(rightWidget);
   rightLayout->setSpacing(8);
   rightLayout->addWidget(timelineWidget_, 1);  // Timeline takes most space
+  rightLayout->addWidget(eventCalendarWidget_, 0);  // Event calendar fixed size
 
   mainLayout->addWidget(leftWidget, 0);   // Fixed width left panel
   mainLayout->addWidget(rightWidget, 1);  // Expandable right panel
@@ -286,6 +291,9 @@ void MainWindow::updateUi() {
     rhoValue_->setText("0.0000");
     updateButtonStates();
     updateTimeline();
+    if (eventCalendarWidget_) {
+      eventCalendarWidget_->updateState(nullptr, config_);
+    }
     return;
   }
 
@@ -315,6 +323,9 @@ void MainWindow::updateUi() {
   rhoValue_->setText(QString::number(rho, 'f', 3));
   updateButtonStates();
   updateTimeline();
+  if (eventCalendarWidget_) {
+    eventCalendarWidget_->updateState(simulator_, config_);
+  }
 }
 
 void MainWindow::updateButtonStates() {
