@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "sim/core/Metrics.h"
 #include "sim/core/Simulator.h"
 #include "sim/core/SimulationConfig.h"
 
