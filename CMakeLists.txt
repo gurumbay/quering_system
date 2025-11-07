@@ -23,9 +23,8 @@ else()
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# Main executable
-add_executable(sim_cli 
-    src/main.cpp
+# Core library
+add_library(sim_core STATIC
     src/core/Request.cpp
     src/core/Event.cpp
     src/core/Device.cpp
@@ -34,7 +33,15 @@ add_executable(sim_cli
     src/core/Metrics.cpp
     src/core/Simulator.cpp
 )
+target_include_directories(sim_core PUBLIC include)
 
+# CLI executable
+add_executable(sim_cli 
+    src/main.cpp
+)
+target_link_libraries(sim_cli PRIVATE sim_core)
+
+# GUI executable
 set(GUI_SOURCES
     src/gui/main_qt.cpp
     src/gui/MainWindow.cpp
@@ -45,16 +52,6 @@ set(GUI_SOURCES
     src/gui/EventCalendarWidget.h
     src/gui/TimelineWidget.cpp
     src/gui/TimelineWidget.h
-    src/core/Request.cpp
-    src/core/Event.cpp
-    src/core/Device.cpp
-    src/core/Buffer.cpp
-    src/core/EventCalendar.cpp
-    src/core/Metrics.cpp
-    src/core/Simulator.cpp
 )
 qt_add_executable(sim_gui WIN32 ${GUI_SOURCES})
-target_include_directories(sim_gui PRIVATE include)
-target_link_libraries(sim_gui PRIVATE Qt6::Widgets)
-
-target_include_directories(sim_cli PRIVATE include)
+target_link_libraries(sim_gui PRIVATE sim_core Qt6::Widgets)
