@@ -5,10 +5,19 @@
 #include <string>
 #include <vector>
 
+namespace TimelineEventType {
+constexpr const char* ARRIVAL = "arrival";
+constexpr const char* SERVICE_START = "service_start";
+constexpr const char* SERVICE_END = "service_end";
+constexpr const char* REFUSAL = "refusal";
+constexpr const char* BUFFER_PLACE = "buffer_place";
+constexpr const char* BUFFER_TAKE = "buffer_take";
+constexpr const char* BUFFER_DISPLACED = "buffer_displaced";
+}  // namespace TimelineEventType
+
 struct TimelineEvent {
   double time;
-  std::string type;  // "arrival", "service_start", "service_end", "refusal",
-                     // "buffer_place", "buffer_take"
+  std::string type;  // TimelineEventType constants
   size_t request_id;
   size_t source_id;
   size_t device_id;
@@ -31,6 +40,19 @@ class Metrics {
   void record_timeline_event(const TimelineEvent& event);
   const std::vector<TimelineEvent>& get_timeline_events() const;
   void clear_timeline_events();
+
+  // Timeline event helper methods (encapsulate TimelineEvent construction)
+  void record_arrival_event(double time, size_t request_id, size_t source_id);
+  void record_service_start_event(double time, size_t request_id, size_t source_id,
+                                  size_t device_id);
+  void record_service_end_event(double time, size_t request_id, size_t source_id,
+                                size_t device_id);
+  void record_buffer_place_event(double time, size_t request_id, size_t source_id,
+                                 size_t buffer_slot);
+  void record_buffer_take_event(double time, size_t request_id, size_t source_id,
+                                size_t device_id, size_t buffer_slot);
+  void record_buffer_displaced_event(double time, size_t request_id, size_t source_id);
+  void record_refusal_event(double time, size_t request_id, size_t source_id);
 
   double get_refusal_probability() const;
   double get_avg_time_in_system() const;
@@ -71,6 +93,9 @@ class Metrics {
   std::vector<double> source_sum_sq_waiting_time_;
   std::vector<double> source_sum_sq_service_time_;
   std::vector<size_t> source_completions_;
+
+  // Helper methods
+  size_t get_source_completion_count(size_t source_id) const;
 };
 
 #endif  // SIM_CORE_METRICS_H_

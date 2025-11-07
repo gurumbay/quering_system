@@ -26,7 +26,7 @@ void Metrics::record_refusal(size_t source_id) {
   ++source_refusals_[source_id];
 }
 
-void Metrics::record_completion(size_t request_id, size_t source_id,
+void Metrics::record_completion(size_t /*request_id*/, size_t source_id,
                                 double time_in_system, double waiting_time,
                                 double service_time) {
   ++completed_;
@@ -122,43 +122,46 @@ double Metrics::get_source_refusal_probability(size_t source_id) const {
 }
 
 double Metrics::get_source_avg_time_in_system(size_t source_id) const {
-  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+  size_t completions = get_source_completion_count(source_id);
+  if (completions == 0) {
     return 0.0;
   }
-  return source_sum_time_in_system_[source_id] / source_completions_[source_id];
+  return source_sum_time_in_system_[source_id] / completions;
 }
 
 double Metrics::get_source_avg_waiting_time(size_t source_id) const {
-  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+  size_t completions = get_source_completion_count(source_id);
+  if (completions == 0) {
     return 0.0;
   }
-  return source_sum_waiting_time_[source_id] / source_completions_[source_id];
+  return source_sum_waiting_time_[source_id] / completions;
 }
 
 double Metrics::get_source_avg_service_time(size_t source_id) const {
-  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+  size_t completions = get_source_completion_count(source_id);
+  if (completions == 0) {
     return 0.0;
   }
-  return source_sum_service_time_[source_id] / source_completions_[source_id];
+  return source_sum_service_time_[source_id] / completions;
 }
 
 double Metrics::get_source_variance_waiting_time(size_t source_id) const {
-  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+  size_t completions = get_source_completion_count(source_id);
+  if (completions == 0) {
     return 0.0;
   }
-  size_t n = source_completions_[source_id];
-  double mean = source_sum_waiting_time_[source_id] / n;
-  double mean_sq = source_sum_sq_waiting_time_[source_id] / n;
+  double mean = source_sum_waiting_time_[source_id] / completions;
+  double mean_sq = source_sum_sq_waiting_time_[source_id] / completions;
   return mean_sq - mean * mean;
 }
 
 double Metrics::get_source_variance_service_time(size_t source_id) const {
-  if (source_id >= source_completions_.size() || source_completions_[source_id] == 0) {
+  size_t completions = get_source_completion_count(source_id);
+  if (completions == 0) {
     return 0.0;
   }
-  size_t n = source_completions_[source_id];
-  double mean = source_sum_service_time_[source_id] / n;
-  double mean_sq = source_sum_sq_service_time_[source_id] / n;
+  double mean = source_sum_service_time_[source_id] / completions;
+  double mean_sq = source_sum_sq_service_time_[source_id] / completions;
   return mean_sq - mean * mean;
 }
 
@@ -171,3 +174,48 @@ const std::vector<TimelineEvent>& Metrics::get_timeline_events() const {
 }
 
 void Metrics::clear_timeline_events() { timeline_events_.clear(); }
+
+// Timeline event helper methods
+void Metrics::record_arrival_event(double time, size_t request_id, size_t source_id) {
+  record_timeline_event({time, TimelineEventType::ARRIVAL, request_id, source_id, 0, 0, ""});
+}
+
+void Metrics::record_service_start_event(double time, size_t request_id, size_t source_id,
+                                         size_t device_id) {
+  record_timeline_event({time, TimelineEventType::SERVICE_START, request_id, source_id,
+                         device_id, 0, ""});
+}
+
+void Metrics::record_service_end_event(double time, size_t request_id, size_t source_id,
+                                       size_t device_id) {
+  record_timeline_event({time, TimelineEventType::SERVICE_END, request_id, source_id,
+                         device_id, 0, ""});
+}
+
+void Metrics::record_buffer_place_event(double time, size_t request_id, size_t source_id,
+                                        size_t buffer_slot) {
+  record_timeline_event({time, TimelineEventType::BUFFER_PLACE, request_id, source_id, 0,
+                         buffer_slot, ""});
+}
+
+void Metrics::record_buffer_take_event(double time, size_t request_id, size_t source_id,
+                                       size_t device_id, size_t buffer_slot) {
+  record_timeline_event({time, TimelineEventType::BUFFER_TAKE, request_id, source_id,
+                         device_id, buffer_slot, ""});
+}
+
+void Metrics::record_buffer_displaced_event(double time, size_t request_id, size_t source_id) {
+  record_timeline_event({time, TimelineEventType::BUFFER_DISPLACED, request_id, source_id,
+                         0, 0, ""});
+}
+
+void Metrics::record_refusal_event(double time, size_t request_id, size_t source_id) {
+  record_timeline_event({time, TimelineEventType::REFUSAL, request_id, source_id, 0, 0, ""});
+}
+
+size_t Metrics::get_source_completion_count(size_t source_id) const {
+  if (source_id >= source_completions_.size()) {
+    return 0;
+  }
+  return source_completions_[source_id];
+}

@@ -13,7 +13,7 @@ std::optional<size_t> Buffer::place_request(size_t request_id) {
     return std::nullopt;
   }
 
-  // D10Z3: Find first free slot starting from place_start_
+  // Find first free slot starting from index 0
   for (size_t idx = 0; idx < capacity_; ++idx) {
     if (!occupied_[idx]) {
       slots_[idx] = request_id;
@@ -27,7 +27,7 @@ std::optional<size_t> Buffer::place_request(size_t request_id) {
 }
 
 size_t Buffer::displace_request() {
-  // D10O4: Displace last arrived request (for overflow handling)
+  // Displace last arrived request (for overflow handling)
   // Last arrived request is the one that was placed just before place_start_
   // i.e., at position (place_start_ - 1 + capacity_) % capacity_
 
@@ -61,7 +61,7 @@ std::pair<std::optional<size_t>, size_t> Buffer::take_request() {
     return {std::nullopt, 0};
   }
 
-  // D2B3: Find first occupied slot starting from select_start_
+  // Take first occupied slot starting from select_start_ (round-robin selection)
   for (size_t i = 0; i < capacity_; ++i) {
     size_t idx = (select_start_ + i) % capacity_;
     if (occupied_[idx]) {
