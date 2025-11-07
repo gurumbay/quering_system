@@ -2,6 +2,7 @@
 #define SIM_CORE_SIMULATOR_H_
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <random>
 #include <vector>
@@ -12,23 +13,9 @@
 #include "sim/core/EventCalendar.h"
 #include "sim/core/Metrics.h"
 #include "sim/core/Request.h"
-
-struct SourceConfig {
-  size_t id;
-  double arrival_interval;  // 1/λ - interval between requests (time units)
-  // λ = 1/arrival_interval - source intensity (requests per time unit)
-};
-
-struct SimulationConfig {
-  size_t num_devices = 2;
-  size_t buffer_capacity = 8;
-  double device_intensity =
-      1.5;  // μ - device intensity (requests per time unit)
-  size_t max_arrivals = 10000;
-  double max_time = 1e9;
-  uint32_t seed = 42;
-  std::vector<SourceConfig> sources;
-};
+#include "sim/core/SimulationConfig.h"
+#include "sim/core/SimulationEvents.h"
+#include "sim/observers/ISimulationObserver.h"
 
 class Simulator {
  public:
@@ -42,6 +29,9 @@ class Simulator {
   Metrics get_metrics() const;
   double get_current_time() const;
   double get_total_simulation_time() const;
+
+  // Observer management
+  void add_observer(std::unique_ptr<ISimulationObserver> observer);
 
   // State query methods for event calendar
   std::vector<bool> get_device_states() const;
@@ -69,8 +59,16 @@ class Simulator {
   std::vector<double> source_next_event_times_;
   std::vector<double> device_next_event_times_;
   double end_time_;
+  std::vector<std::unique_ptr<ISimulationObserver>> observers_;
 
   // Helper methods
+  void notify_arrival(const ArrivalEvent& event);
+  void notify_service_start(const ServiceStartEvent& event);
+  void notify_service_end(const ServiceEndEvent& event);
+  void notify_buffer_place(const BufferPlaceEvent& event);
+  void notify_buffer_take(const BufferTakeEvent& event);
+  void notify_buffer_displaced(const BufferDisplacedEvent& event);
+  void notify_refusal(const RefusalEvent& event);
   bool process_next_event();
   void clear_event_tracking(const Event& event);
   size_t create_request(size_t source_id);

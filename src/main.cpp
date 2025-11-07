@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "sim/core/Simulator.h"
+#include "sim/core/SimulationConfig.h"
 
 auto main() -> int {
   SimulationConfig config;

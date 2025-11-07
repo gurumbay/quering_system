@@ -32,6 +32,10 @@ add_library(sim_core STATIC
     src/core/EventCalendar.cpp
     src/core/Metrics.cpp
     src/core/Simulator.cpp
+    src/core/SimulationConfig.cpp
+    src/utils/ConstantDistribution.cpp
+    src/utils/ExponentialDistribution.cpp
+    src/observers/MetricsObserver.cpp
 )
 target_include_directories(sim_core PUBLIC include)
 

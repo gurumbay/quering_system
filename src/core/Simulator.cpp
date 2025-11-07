@@ -2,7 +2,13 @@
 
 #include <algorithm>
 #include <iostream>
+#include <memory>
 #include <optional>
+
+#include "sim/core/SimulationConfig.h"
+#include "sim/core/SimulationEvents.h"
+#include "sim/observers/ISimulationObserver.h"
+#include "sim/observers/MetricsObserver.h"
 
 namespace {
 constexpr double NO_EVENT_TIME = -1.0;
@@ -26,6 +32,10 @@ Simulator::Simulator(const SimulationConfig& config)
   source_next_event_times_.resize(config.sources.size(), NO_EVENT_TIME);
   device_next_event_times_.resize(config.num_devices, NO_EVENT_TIME);
   end_time_ = 0.0;
+
+  // Create and add MetricsObserver
+  auto metrics_observer = std::make_unique<MetricsObserver>(metrics_);
+  observers_.push_back(std::move(metrics_observer));
 
   // Schedule initial arrivals for all sources
   for (size_t i = 0; i < config.sources.size(); ++i) {
@@ -121,16 +131,16 @@ void Simulator::start_device_service(size_t device_id, size_t request_id) {
   double service_end_time = current_time_ + service_time;
   schedule_service_end(device_id, request_id, service_end_time);
 
-  metrics_.record_service_start_event(current_time_, request_id,
-                                      requests_[request_id].get_source_id(),
-                                      device_id);
+  ServiceStartEvent event{request_id, requests_[request_id].get_source_id(),
+                          device_id, current_time_};
+  notify_service_start(event);
 }
 
 void Simulator::handle_buffer_placement(size_t request_id, size_t source_id) {
   auto buffer_slot = buffer_.place_request(request_id);
   if (buffer_slot.has_value()) {
-    metrics_.record_buffer_place_event(current_time_, request_id, source_id,
-                                      *buffer_slot);
+    BufferPlaceEvent event{request_id, source_id, *buffer_slot, current_time_};
+    notify_buffer_place(event);
   } else {
     // Buffer full: displace last arrived request and place new request
     size_t displaced_id = buffer_.displace_request();
@@ -138,18 +148,16 @@ void Simulator::handle_buffer_placement(size_t request_id, size_t source_id) {
     if (displaced_id != INVALID_REQUEST_ID &&
         displaced_id < requests_.size()) {
       size_t displaced_source = requests_[displaced_id].get_source_id();
-      metrics_.record_refusal(displaced_source);
-      metrics_.record_buffer_displaced_event(current_time_, displaced_id,
-                                             displaced_source);
-      metrics_.record_refusal_event(current_time_, displaced_id,
-                                    displaced_source);
+      BufferDisplacedEvent displaced_event{displaced_id, displaced_source,
+                                           current_time_};
+      notify_buffer_displaced(displaced_event);
     }
 
     // Place the new request in the freed slot
     auto new_slot = buffer_.place_request(request_id);
     if (new_slot.has_value()) {
-      metrics_.record_buffer_place_event(current_time_, request_id, source_id,
-                                        *new_slot);
+      BufferPlaceEvent event{request_id, source_id, *new_slot, current_time_};
+      notify_buffer_place(event);
     }
   }
 }
@@ -172,9 +180,10 @@ void Simulator::handle_arrival(size_t source_id) {
   }
 
   size_t request_id = create_request(source_id);
-  metrics_.record_arrival(source_id);
   source_arrivals_count_[source_id]++;
-  metrics_.record_arrival_event(current_time_, request_id, source_id);
+
+  ArrivalEvent event{request_id, source_id, current_time_};
+  notify_arrival(event);
 
   auto free_device = find_free_device();
   if (free_device.has_value()) {
@@ -195,11 +204,10 @@ void Simulator::handle_service_end(size_t device_id) {
     double waiting_time = req.get_service_start_time() - req.get_arrival_time();
     double service_time = current_time_ - req.get_service_start_time();
 
-    metrics_.record_completion(finished_id, req.get_source_id(), time_in_system,
-                               waiting_time, service_time);
-    metrics_.record_device_busy_time(device_id, service_time);
-    metrics_.record_service_end_event(current_time_, finished_id,
-                                      req.get_source_id(), device_id);
+    ServiceEndEvent event{finished_id, req.get_source_id(), device_id,
+                         current_time_, time_in_system, waiting_time,
+                         service_time};
+    notify_service_end(event);
 
     end_time_ = current_time_;
   }
@@ -209,9 +217,9 @@ void Simulator::handle_service_end(size_t device_id) {
     auto [next_request, buffer_slot_index] = buffer_.take_request();
     if (next_request.has_value()) {
       size_t request_id = *next_request;
-      metrics_.record_buffer_take_event(
-          current_time_, request_id, requests_[request_id].get_source_id(),
-          device_id, buffer_slot_index);
+      BufferTakeEvent event{request_id, requests_[request_id].get_source_id(),
+                            device_id, buffer_slot_index, current_time_};
+      notify_buffer_take(event);
 
       start_device_service(device_id, request_id);
     } else {
@@ -331,4 +339,50 @@ std::vector<bool> Simulator::get_source_states() const {
     states.push_back(next_time != NO_EVENT_TIME);  // active = has scheduled event
   }
   return states;
+}
+
+void Simulator::add_observer(std::unique_ptr<ISimulationObserver> observer) {
+  observers_.push_back(std::move(observer));
+}
+
+void Simulator::notify_arrival(const ArrivalEvent& event) {
+  for (auto& observer : observers_) {
+    observer->on_arrival(event);
+  }
+}
+
+void Simulator::notify_service_start(const ServiceStartEvent& event) {
+  for (auto& observer : observers_) {
+    observer->on_service_start(event);
+  }
+}
+
+void Simulator::notify_service_end(const ServiceEndEvent& event) {
+  for (auto& observer : observers_) {
+    observer->on_service_end(event);
+  }
+}
+
+void Simulator::notify_buffer_place(const BufferPlaceEvent& event) {
+  for (auto& observer : observers_) {
+    observer->on_buffer_place(event);
+  }
+}
+
+void Simulator::notify_buffer_take(const BufferTakeEvent& event) {
+  for (auto& observer : observers_) {
+    observer->on_buffer_take(event);
+  }
+}
+
+void Simulator::notify_buffer_displaced(const BufferDisplacedEvent& event) {
+  for (auto& observer : observers_) {
+    observer->on_buffer_displaced(event);
+  }
+}
+
+void Simulator::notify_refusal(const RefusalEvent& event) {
+  for (auto& observer : observers_) {
+    observer->on_refusal(event);
+  }
 }
