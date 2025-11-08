@@ -100,7 +100,6 @@ void Metrics::reset() {
   device_busy_times_.clear();
   source_arrivals_.clear();
   source_refusals_.clear();
-  timeline_events_.clear();
   source_sum_time_in_system_.clear();
   source_sum_waiting_time_.clear();
   source_sum_service_time_.clear();
@@ -163,54 +162,6 @@ double Metrics::get_source_variance_service_time(size_t source_id) const {
   double mean = source_sum_service_time_[source_id] / completions;
   double mean_sq = source_sum_sq_service_time_[source_id] / completions;
   return mean_sq - mean * mean;
-}
-
-void Metrics::record_timeline_event(const TimelineEvent& event) {
-  timeline_events_.push_back(event);
-}
-
-const std::vector<TimelineEvent>& Metrics::get_timeline_events() const {
-  return timeline_events_;
-}
-
-void Metrics::clear_timeline_events() { timeline_events_.clear(); }
-
-// Timeline event helper methods
-void Metrics::record_arrival_event(double time, size_t request_id, size_t source_id) {
-  record_timeline_event({time, TimelineEventType::ARRIVAL, request_id, source_id, 0, 0, ""});
-}
-
-void Metrics::record_service_start_event(double time, size_t request_id, size_t source_id,
-                                         size_t device_id) {
-  record_timeline_event({time, TimelineEventType::SERVICE_START, request_id, source_id,
-                         device_id, 0, ""});
-}
-
-void Metrics::record_service_end_event(double time, size_t request_id, size_t source_id,
-                                       size_t device_id) {
-  record_timeline_event({time, TimelineEventType::SERVICE_END, request_id, source_id,
-                         device_id, 0, ""});
-}
-
-void Metrics::record_buffer_place_event(double time, size_t request_id, size_t source_id,
-                                        size_t buffer_slot) {
-  record_timeline_event({time, TimelineEventType::BUFFER_PLACE, request_id, source_id, 0,
-                         buffer_slot, ""});
-}
-
-void Metrics::record_buffer_take_event(double time, size_t request_id, size_t source_id,
-                                       size_t device_id, size_t buffer_slot) {
-  record_timeline_event({time, TimelineEventType::BUFFER_TAKE, request_id, source_id,
-                         device_id, buffer_slot, ""});
-}
-
-void Metrics::record_buffer_displaced_event(double time, size_t request_id, size_t source_id) {
-  record_timeline_event({time, TimelineEventType::BUFFER_DISPLACED, request_id, source_id,
-                         0, 0, ""});
-}
-
-void Metrics::record_refusal_event(double time, size_t request_id, size_t source_id) {
-  record_timeline_event({time, TimelineEventType::REFUSAL, request_id, source_id, 0, 0, ""});
 }
 
 size_t Metrics::get_source_completion_count(size_t source_id) const {
