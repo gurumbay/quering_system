@@ -11,19 +11,22 @@ struct SourceConfig {
   // λ = 1/arrival_interval - source intensity (requests per time unit)
 };
 
-struct SimulationConfig {
-  size_t num_devices = 2;
-  size_t buffer_capacity = 8;
-  double device_intensity =
-      1.5;  // μ - device intensity (requests per time unit)
-  size_t max_arrivals = 10000;
-  double max_time = 1e9;
-  uint32_t seed = 42;
-  std::vector<SourceConfig> sources;
+enum class ServiceDistributionType {
+  Exponential,  // Exponential distribution
+  Constant      // Constant intervals
+};
 
-  // Validate configuration
-  bool validate() const;
+struct SimulationConfig {
+  size_t num_devices;
+  size_t buffer_capacity;
+  double device_intensity;  // requests per time unit (μ)
+  ServiceDistributionType service_distribution_type =
+      ServiceDistributionType::Exponential;
+  double constant_service_time;  // Used when type is Constant
+  size_t max_arrivals;
+  double max_time = 1e9;
+  uint32_t seed;
+  std::vector<SourceConfig> sources;
 };
 
 #endif  // SIM_CORE_SIMULATION_CONFIG_H_
-
