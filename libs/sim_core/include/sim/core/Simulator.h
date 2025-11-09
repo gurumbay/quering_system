@@ -3,79 +3,68 @@
 
 #include <cstddef>
 #include <memory>
-#include <optional>
-#include <random>
 #include <vector>
 
 #include "sim/core/Buffer.h"
-#include "sim/core/Device.h"
+#include "sim/core/DevicePool.h"
 #include "sim/core/Event.h"
 #include "sim/core/EventCalendar.h"
+#include "sim/core/EventDispatcher.h"
 #include "sim/core/Metrics.h"
-#include "sim/core/Request.h"
 #include "sim/core/SimulationConfig.h"
-#include "sim/core/SimulationEvents.h"
+#include "sim/core/SourceManager.h"
 #include "sim/observers/ISimulationObserver.h"
+#include "sim/utils/IDistribution.h"
 
 class Simulator {
  public:
   explicit Simulator(const SimulationConfig& config);
+  ~Simulator() = default;
+
+  // Simulation control
   void run();
   void step();
-  void handle_arrival(size_t source_id);
-  void handle_service_end(size_t device_id);
-  void schedule_service_end(size_t device_id, size_t request_id,
-                            double end_time);
-  Metrics get_metrics() const;
-  double get_current_time() const;
-  double get_total_simulation_time() const;
+
+  // Metrics and state queries
+  Metrics get_metrics() const { return metrics_; }
+  double get_current_time() const { return current_time_; }
 
   // Observer management
   void add_observer(std::unique_ptr<ISimulationObserver> observer);
 
-  // State query methods for event calendar
+  // State query methods for UI
   std::vector<bool> get_device_states() const;
   std::vector<double> get_source_next_event_times() const;
   std::vector<double> get_device_next_event_times() const;
   std::vector<bool> get_source_states() const;
 
-  // Debug methods
-  void print_state() const;
+  // Query methods for state inspection
+  const Buffer& get_buffer() const { return buffer_; }
+  const DevicePool& get_device_pool() const { return *device_pool_; }
+  size_t get_calendar_size() const { return calendar_.get_size(); }
+
   bool is_finished() const;
 
  private:
-  std::vector<Device> devices_;
+  SimulationConfig config_;
+
+  // Core components
+  std::unique_ptr<DevicePool> device_pool_;
   Buffer buffer_;
   EventCalendar calendar_;
   Metrics metrics_;
-  std::mt19937 rng_;
-  std::exponential_distribution<double> service_dist_;
-  std::vector<Request> requests_;
+  std::unique_ptr<IDistribution> service_distribution_;
+  std::unique_ptr<SourceManager> source_manager_;
+  std::unique_ptr<EventDispatcher> dispatcher_;
+
+  // Simulation state
   double current_time_;
-  size_t next_request_id_;
-  size_t next_device_idx_;
-  SimulationConfig config_;
-  std::vector<size_t> source_arrivals_count_;
-  std::vector<double> source_next_event_times_;
-  std::vector<double> device_next_event_times_;
-  double end_time_;
+
+  // Observers
   std::vector<std::unique_ptr<ISimulationObserver>> observers_;
 
   // Helper methods
-  void notify_arrival(const ArrivalEvent& event);
-  void notify_service_start(const ServiceStartEvent& event);
-  void notify_service_end(const ServiceEndEvent& event);
-  void notify_buffer_place(const BufferPlaceEvent& event);
-  void notify_buffer_take(const BufferTakeEvent& event);
-  void notify_buffer_displaced(const BufferDisplacedEvent& event);
-  void notify_refusal(const RefusalEvent& event);
   bool process_next_event();
-  void clear_event_tracking(const Event& event);
-  size_t create_request(size_t source_id);
-  std::optional<size_t> find_free_device();
-  void start_device_service(size_t device_id, size_t request_id);
-  void handle_buffer_placement(size_t request_id, size_t source_id);
-  void schedule_next_arrival_for_source(size_t source_id);
 };
 
 #endif  // SIM_CORE_SIMULATOR_H_

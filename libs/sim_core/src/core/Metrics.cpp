@@ -79,9 +79,9 @@ double Metrics::get_avg_service_time() const {
 }
 
 double Metrics::get_device_utilization(size_t device_id,
-                                       double total_time) const {
-  if (total_time <= 0.0 || device_id >= device_busy_times_.size()) return 0.0;
-  return device_busy_times_[device_id] / total_time;
+                                       double current_time) const {
+  if (current_time <= 0.0 || device_id >= device_busy_times_.size()) return 0.0;
+  return device_busy_times_[device_id] / current_time;
 }
 
 size_t Metrics::get_arrived() const { return arrived_; }

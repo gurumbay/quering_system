@@ -2,23 +2,23 @@
 #define SIM_CORE_DEVICE_H_
 
 #include <cstddef>
+#include <memory>
+
+class Request;
 
 class Device {
  public:
   Device(size_t id);
   bool is_free() const;
-  void start_service(size_t request_id, double now);
-  size_t finish_service(double now);
-  double get_utilization(double total_time) const;
+  void start_service(std::shared_ptr<Request> request, double now);
+  std::shared_ptr<Request> finish_service(double now);
   size_t get_id() const;
-  size_t get_current_request_id() const;
+  std::shared_ptr<Request> get_current_request() const;
 
  private:
   size_t id_;
   bool busy_;
-  size_t current_request_id_;
-  double busy_since_;
-  double total_busy_time_;
+  std::shared_ptr<Request> current_request_;
 };
 
 #endif  // SIM_CORE_DEVICE_H_

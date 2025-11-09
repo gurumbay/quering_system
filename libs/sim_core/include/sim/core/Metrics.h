@@ -19,7 +19,7 @@ class Metrics {
   double get_avg_time_in_system() const;
   double get_avg_waiting_time() const;
   double get_avg_service_time() const;
-  double get_device_utilization(size_t device_id, double total_time) const;
+  double get_device_utilization(size_t device_id, double current_time) const;
   size_t get_arrived() const;
   size_t get_refused() const;
   size_t get_completed() const;

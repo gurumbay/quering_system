@@ -54,4 +54,3 @@ struct RefusalEvent {
 };
 
 #endif  // SIM_CORE_SIMULATION_EVENTS_H_
-

@@ -1,20 +1,30 @@
 #include "sim/core/Event.h"
 
-Event::Event(double time, EventType type, size_t request_id, size_t device_id,
-             size_t source_id)
+#include "sim/core/Device.h"
+#include "sim/core/Request.h"
+
+Event::Event(double time, EventType type, std::weak_ptr<Request> request,
+             Device* device, size_t source_id)
     : time_(time),
       type_(type),
-      request_id_(request_id),
-      device_id_(device_id),
+      request_(request),
+      device_(device),
       source_id_(source_id) {}
 
 double Event::get_time() const { return time_; }
 
 EventType Event::get_type() const { return type_; }
 
-size_t Event::get_request_id() const { return request_id_; }
+std::weak_ptr<Request> Event::get_request() const { return request_; }
 
-size_t Event::get_device_id() const { return device_id_; }
+Device* Event::get_device() const { return device_; }
+
+size_t Event::get_request_id() const {
+  auto request = request_.lock();
+  return request ? request->get_id() : 0;
+}
+
+size_t Event::get_device_id() const { return device_ ? device_->get_id() : 0; }
 
 size_t Event::get_source_id() const { return source_id_; }
 

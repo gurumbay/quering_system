@@ -1,80 +1,85 @@
 #include "sim/core/Buffer.h"
 
-#include <algorithm>
-
 Buffer::Buffer(size_t capacity)
     : capacity_(capacity), size_(0), place_start_(0), select_start_(0) {
-  slots_.resize(capacity_);
-  occupied_.resize(capacity_, false);
+  slots_.resize(capacity_, nullptr);
 }
 
-std::optional<size_t> Buffer::place_request(size_t request_id) {
-  if (is_full()) {
+std::optional<size_t> Buffer::place_request(std::shared_ptr<Request> request) {
+  if (is_full() || !request) {
     return std::nullopt;
   }
 
   // Find first free slot starting from index 0
   for (size_t idx = 0; idx < capacity_; ++idx) {
-    if (!occupied_[idx]) {
-      slots_[idx] = request_id;
-      occupied_[idx] = true;
+    if (!slots_[idx]) {
+      slots_[idx] = request;
       ++size_;
-      return idx;  // Return slot index
+      place_start_ = idx;  // Track last placed position
+      return idx;          // Return slot index
     }
   }
 
   return std::nullopt;  // Should never reach here if !is_full()
 }
 
-size_t Buffer::displace_request() {
-  // Displace last arrived request (for overflow handling)
-  // Last arrived request is the one that was placed just before place_start_
-  // i.e., at position (place_start_ - 1 + capacity_) % capacity_
-
+std::shared_ptr<Request> Buffer::displace_request() {
   if (is_empty()) {
-    return 0;  // No request to displace
+    return nullptr;
   }
 
-  // Last arrived request is just before place_start_ pointer
-  size_t last_idx = (place_start_ - 1 + capacity_) % capacity_;
-
-  // Search backwards from last placed to find the actual last occupied slot
-  for (size_t i = 0; i < capacity_; ++i) {
-    size_t idx = (last_idx - i + capacity_) % capacity_;
-    if (occupied_[idx]) {
-      size_t displaced_id = slots_[idx];
-      occupied_[idx] = false;
-      slots_[idx] = 0;
+  // Start searching backwards from the last placed position
+  // Wrap around if we reach the beginning
+  for (size_t offset = 0; offset < capacity_; ++offset) {
+    size_t idx = (place_start_ - offset + capacity_) % capacity_;
+    if (slots_[idx]) {
+      std::shared_ptr<Request> displaced_request = slots_[idx];
+      slots_[idx] = nullptr;
       --size_;
-      // Update place_start_ to point to the freed slot so next placement starts
-      // from here
-      place_start_ = idx;
-      return displaced_id;
+      // Update place_start_ to point to the slot before the displaced one
+      // This ensures next displacement continues from the correct position
+      place_start_ = (idx - 1 + capacity_) % capacity_;
+      return displaced_request;
     }
   }
 
-  return 0;  // Should never reach here
+  return nullptr;  // Should never reach here
 }
 
-std::pair<std::optional<size_t>, size_t> Buffer::take_request() {
+std::pair<std::shared_ptr<Request>, size_t> Buffer::take_request() {
   if (is_empty()) {
-    return {std::nullopt, 0};
+    return {nullptr, 0};
   }
 
-  // Take first occupied slot starting from select_start_ (round-robin selection)
+  // Take first occupied slot starting from select_start_
+  // (round-robin selection)
   for (size_t i = 0; i < capacity_; ++i) {
     size_t idx = (select_start_ + i) % capacity_;
-    if (occupied_[idx]) {
-      size_t request_id = slots_[idx];
-      occupied_[idx] = false;
-      slots_[idx] = 0;                        // Clear slot
+    if (slots_[idx]) {
+      std::shared_ptr<Request> request = slots_[idx];
+      slots_[idx] = nullptr;                  // Clear slot
       select_start_ = (idx + 1) % capacity_;  // Rotate start pointer
       --size_;
-      return {request_id, idx};  // Return request_id and slot index
+
+      // If we removed the request at place_start_, update place_start_
+      // to point to the previous occupied slot 
+      // (for correct displacement tracking)
+      if (idx == place_start_ && size_ > 0) {
+        // Find the last occupied slot before the removed one
+        for (size_t j = 1; j < capacity_; ++j) {
+          size_t prev_idx = (idx - j + capacity_) % capacity_;
+          if (slots_[prev_idx]) {
+            place_start_ = prev_idx;
+            break;
+          }
+        }
+      }
+
+      return {request, idx};  // Return request and slot index
     }
   }
 
-  return {std::nullopt, 0};  // Should never reach here if !is_empty()
+  return {nullptr, 0};  // Should never reach here
 }
 
 bool Buffer::is_empty() const { return size_ == 0; }

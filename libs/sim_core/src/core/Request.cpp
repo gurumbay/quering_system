@@ -1,7 +1,9 @@
 #include "sim/core/Request.h"
 
-Request::Request(size_t id, size_t source_id, double t_arrival)
-    : id_(id),
+size_t Request::next_id_ = 1;
+
+Request::Request(size_t source_id, double t_arrival)
+    : id_(next_id_++),
       source_id_(source_id),
       t_arrival_(t_arrival),
       t_service_start_(0.0) {}
