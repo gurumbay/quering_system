@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "sim/core/Metrics.h"
-#include "sim/core/Simulator.h"
-#include "sim/core/SimulationConfig.h"
+#include "sim/metrics/Metrics.h"
+#include "sim/simulator/Simulator.h"
+#include "sim/simulator/SimulationConfig.h"
 
 void print_state(const Simulator& simulator) {
   std::cout << "\n=== SIMULATION STATE ===" << std::endl;

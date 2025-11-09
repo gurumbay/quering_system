@@ -1,7 +1,7 @@
 #ifndef SIM_OBSERVERS_I_SIMULATION_OBSERVER_H_
 #define SIM_OBSERVERS_I_SIMULATION_OBSERVER_H_
 
-#include "sim/core/SimulationEvents.h"
+#include "sim/event/SimulationEvents.h"
 
 class ISimulationObserver {
  public:

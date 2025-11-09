@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "sim/core/SimulationEvents.h"
+#include "sim/event/SimulationEvents.h"
 #include "sim/observers/ISimulationObserver.h"
 
 struct TimelineEvent {

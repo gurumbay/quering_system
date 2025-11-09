@@ -3,7 +3,7 @@
 #include <QTableWidget>
 #include <QWidget>
 
-#include "sim/core/Simulator.h"
+#include "sim/simulator/Simulator.h"
 
 class AnalyticsWidget : public QWidget {
   Q_OBJECT

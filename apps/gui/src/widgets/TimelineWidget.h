@@ -10,7 +10,7 @@
 #include <set>
 
 #include "TimelineObserver.h"
-#include "sim/core/Simulator.h"
+#include "sim/simulator/Simulator.h"
 
 // Canvas that does the actual drawing
 class TimelineCanvas : public QWidget {

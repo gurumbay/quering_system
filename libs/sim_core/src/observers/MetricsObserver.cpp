@@ -1,7 +1,7 @@
 #include "sim/observers/MetricsObserver.h"
 
-#include "sim/core/Metrics.h"
-#include "sim/core/SimulationEvents.h"
+#include "sim/metrics/Metrics.h"
+#include "sim/event/SimulationEvents.h"
 
 MetricsObserver::MetricsObserver(Metrics& metrics) : metrics_(metrics) {}
 

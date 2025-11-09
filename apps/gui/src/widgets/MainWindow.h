@@ -14,7 +14,7 @@
 #include "AnalyticsWidget.h"
 #include "EventCalendarWidget.h"
 #include "TimelineWidget.h"
-#include "sim/core/Simulator.h"
+#include "sim/simulator/Simulator.h"
 
 class MainWindow : public QMainWindow {
   Q_OBJECT

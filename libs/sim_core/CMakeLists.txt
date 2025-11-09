@@ -2,18 +2,18 @@ cmake_minimum_required(VERSION 3.20)
 
 # Core simulation library
 add_library(sim_core STATIC
-    src/core/Buffer.cpp
-    src/core/Device.cpp
-    src/core/DevicePool.cpp
-    src/core/Event.cpp
-    src/core/EventCalendar.cpp
-    src/core/EventDispatcher.cpp
-    src/core/Metrics.cpp
-    src/core/Request.cpp
-    src/core/RoundRobinStrategy.cpp
-    src/core/Simulator.cpp
-    src/core/SourceManager.cpp
-    src/core/ConfigurationManager.cpp
+    src/queue/Buffer.cpp
+    src/device/Device.cpp
+    src/device/DevicePool.cpp
+    src/event/Event.cpp
+    src/event/EventCalendar.cpp
+    src/event/EventDispatcher.cpp
+    src/metrics/Metrics.cpp
+    src/model/Request.cpp
+    src/device/RoundRobinStrategy.cpp
+    src/simulator/Simulator.cpp
+    src/source/SourceManager.cpp
+    src/simulator/ConfigurationManager.cpp
     src/observers/MetricsObserver.cpp
     src/utils/ConstantDistribution.cpp
     src/utils/ExponentialDistribution.cpp
