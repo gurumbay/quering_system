@@ -2,7 +2,6 @@
 #define SIM_CORE_SOURCE_MANAGER_H_
 
 #include <cstddef>
-#include <optional>
 #include <vector>
 
 #include "sim/core/Event.h"

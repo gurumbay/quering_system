@@ -62,7 +62,7 @@ auto main() -> int {
 
   while (!simulator.is_finished()) {
     std::cout << "\nStep " << step_count << " - Enter command: ";
-    command = getchar();
+    command = static_cast<char>(getchar());
 
     if (command == 'q') {
       break;

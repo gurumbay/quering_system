@@ -44,7 +44,7 @@ void EventDispatcher::handle_service_end(Device* device, double current_time) {
     return;
   }
 
-  auto finished_request = device->finish_service(current_time);
+  auto finished_request = device->finish_service();
 
   if (finished_request) {
     double time_in_system = current_time - finished_request->get_arrival_time();
@@ -98,7 +98,6 @@ void EventDispatcher::start_device_service(Device* device,
   }
 
   device->start_service(request, current_time);
-  request->set_service_start_time(current_time);
 
   double service_time = service_distribution_.generate();
   double service_end_time = current_time + service_time;

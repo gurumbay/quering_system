@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <optional>
 #include <vector>
 
 #include "sim/core/Device.h"

@@ -11,10 +11,11 @@ bool Device::is_free() const { return !busy_; }
 
 void Device::start_service(std::shared_ptr<Request> request, double now) {
   busy_ = true;
+  request->set_service_start_time(now);
   current_request_ = request;
 }
 
-std::shared_ptr<Request> Device::finish_service(double now) {
+std::shared_ptr<Request> Device::finish_service() {
   if (busy_) {
     busy_ = false;
     std::shared_ptr<Request> finished_request = current_request_;

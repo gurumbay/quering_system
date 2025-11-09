@@ -11,7 +11,7 @@ class Device {
   Device(size_t id);
   bool is_free() const;
   void start_service(std::shared_ptr<Request> request, double now);
-  std::shared_ptr<Request> finish_service(double now);
+  std::shared_ptr<Request> finish_service();
   size_t get_id() const;
   std::shared_ptr<Request> get_current_request() const;
 
