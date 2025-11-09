@@ -12,12 +12,15 @@
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), simulator_(nullptr), running_(false) {
   // Default configuration
-  config_.num_devices = 3;
   config_.buffer_capacity = 3;
-  config_.device_intensity = 0.3;
   config_.max_arrivals = 1000;
   config_.seed = 52;
-  config_.sources = {{0, 3.0}, {1, 4.0}, {2, 5.0}};
+  config_.sources = {{0, 3.0, DistributionType::Constant}, 
+                     {1, 4.0, DistributionType::Constant}, 
+                     {2, 5.0, DistributionType::Constant}};
+  config_.devices = {{0, 0.3, DistributionType::Exponential},
+                      {1, 0.3, DistributionType::Exponential},
+                      {2, 0.3, DistributionType::Exponential}};
 
   auto* central = new QWidget(this);
 
@@ -27,45 +30,30 @@ MainWindow::MainWindow(QWidget* parent)
   auto* configLayout = new QGridLayout(configGroup);
 
   // Basic parameters
-  configLayout->addWidget(new QLabel("Devices:"), 0, 0);
-  numDevicesSpin_ = new QSpinBox(this);
-  numDevicesSpin_->setRange(1, 10);
-  numDevicesSpin_->setValue(static_cast<int>(config_.num_devices));
-  configLayout->addWidget(numDevicesSpin_, 0, 1);
-
-  configLayout->addWidget(new QLabel("Device intensity (μ):"), 1, 0);
-  deviceIntensitySpin_ = new QDoubleSpinBox(this);
-  deviceIntensitySpin_->setRange(0.01, 10.0);
-  deviceIntensitySpin_->setDecimals(2);
-  deviceIntensitySpin_->setSingleStep(0.1);
-  deviceIntensitySpin_->setValue(config_.device_intensity);
-  configLayout->addWidget(deviceIntensitySpin_, 1, 1);
-
-  configLayout->addWidget(new QLabel("Buffer:"), 2, 0);
   bufferCapacitySpin_ = new QSpinBox(this);
   bufferCapacitySpin_->setRange(1, 100);
   bufferCapacitySpin_->setValue(static_cast<int>(config_.buffer_capacity));
-  configLayout->addWidget(bufferCapacitySpin_, 2, 1);
+  configLayout->addWidget(bufferCapacitySpin_, 0, 1);
 
-  configLayout->addWidget(new QLabel("Max arrivals:"), 3, 0);
+  configLayout->addWidget(new QLabel("Max arrivals:"), 1, 0);
   maxArrivalsSpin_ = new QSpinBox(this);
   maxArrivalsSpin_->setRange(1, 10000);
   maxArrivalsSpin_->setValue(static_cast<int>(config_.max_arrivals));
-  configLayout->addWidget(maxArrivalsSpin_, 3, 1);
+  configLayout->addWidget(maxArrivalsSpin_, 1, 1);
 
-  configLayout->addWidget(new QLabel("Seed:"), 4, 0);
+  configLayout->addWidget(new QLabel("Seed:"), 2, 0);
   seedSpin_ = new QSpinBox(this);
   seedSpin_->setRange(1, 999999);
   seedSpin_->setValue(static_cast<int>(config_.seed));
-  configLayout->addWidget(seedSpin_, 4, 1);
+  configLayout->addWidget(seedSpin_, 2, 1);
 
   // Sources block
   auto* sourcesLayout = new QVBoxLayout();
   sourcesLayout->addWidget(new QLabel("Sources:"));
 
   sourcesTable_ =
-      new QTableWidget(static_cast<int>(config_.sources.size()), 2, this);
-  sourcesTable_->setHorizontalHeaderLabels({"ID", "Interval"});
+      new QTableWidget(static_cast<int>(config_.sources.size()), 3, this);
+  sourcesTable_->setHorizontalHeaderLabels({"ID", "Parameter", "Distribution"});
   sourcesTable_->horizontalHeader()->setStretchLastSection(true);
   sourcesTable_->verticalHeader()->setVisible(false);
   sourcesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -80,9 +68,26 @@ MainWindow::MainWindow(QWidget* parent)
     sourcesTable_->setItem(i, 0, new QTableWidgetItem(QString::number(i + 1)));
     sourcesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable |
                                         Qt::ItemIsEnabled);
-    sourcesTable_->setItem(i, 1,
-                           new QTableWidgetItem(QString::number(
-                               config_.sources[i].arrival_interval)));
+    auto* paramItem = new QTableWidgetItem(QString::number(
+        config_.sources[i].arrival_parameter));
+    sourcesTable_->setItem(i, 1, paramItem);
+    
+    auto* distCombo = new QComboBox(this);
+    distCombo->addItem("Constant", static_cast<int>(DistributionType::Constant));
+    distCombo->addItem("Exponential", static_cast<int>(DistributionType::Exponential));
+    distCombo->setCurrentIndex(static_cast<int>(config_.sources[i].arrival_distribution_type));
+    sourcesTable_->setCellWidget(i, 2, distCombo);
+    
+    if (config_.sources[i].arrival_distribution_type == DistributionType::Exponential) {
+      paramItem->setToolTip("Intensity (λ)");
+      distCombo->setToolTip("Exponential: intensity (λ)\nConstant: interval between requests");
+    } else {
+      paramItem->setToolTip("Interval between requests");
+      distCombo->setToolTip("Constant: interval between requests\nExponential: intensity (λ)");
+    }
+    
+    connect(distCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            [this, i]() { onSourceDistributionChanged(i); });
   }
 
   // Sources controls
@@ -92,7 +97,60 @@ MainWindow::MainWindow(QWidget* parent)
   sourcesBtns->addWidget(btnAddSource_);
   sourcesBtns->addWidget(btnRemoveSource_);
   sourcesLayout->addLayout(sourcesBtns);
-  configLayout->addLayout(sourcesLayout, 5, 0, 1, 2);
+  configLayout->addLayout(sourcesLayout, 3, 0, 1, 2);
+
+  // Devices block
+  auto* devicesLayout = new QVBoxLayout();
+  devicesLayout->addWidget(new QLabel("Devices:"));
+
+  devicesTable_ =
+      new QTableWidget(static_cast<int>(config_.devices.size()), 3, this);
+  devicesTable_->setHorizontalHeaderLabels({"ID", "Parameter", "Distribution"});
+  devicesTable_->horizontalHeader()->setStretchLastSection(true);
+  devicesTable_->verticalHeader()->setVisible(false);
+  devicesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
+  devicesTable_->setSelectionMode(QAbstractItemView::SingleSelection);
+  devicesTable_->setEditTriggers(QAbstractItemView::DoubleClicked |
+                                 QAbstractItemView::EditKeyPressed);
+  devicesTable_->setMaximumHeight(140);
+  devicesLayout->addWidget(devicesTable_);
+
+  // Fill devices table
+  for (int i = 0; i < config_.devices.size(); ++i) {
+    devicesTable_->setItem(i, 0, new QTableWidgetItem(QString::number(i + 1)));
+    devicesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable |
+                                        Qt::ItemIsEnabled);
+    auto* paramItem = new QTableWidgetItem(QString::number(
+        config_.devices[i].service_parameter));
+    devicesTable_->setItem(i, 1, paramItem);
+    
+    auto* distCombo = new QComboBox(this);
+    distCombo->addItem("Constant", static_cast<int>(DistributionType::Constant));
+    distCombo->addItem("Exponential", static_cast<int>(DistributionType::Exponential));
+    distCombo->setCurrentIndex(static_cast<int>(config_.devices[i].service_distribution_type));
+    devicesTable_->setCellWidget(i, 2, distCombo);
+    
+    if (config_.devices[i].service_distribution_type == DistributionType::Exponential) {
+      paramItem->setToolTip("Intensity (μ)");
+      distCombo->setToolTip("Exponential: intensity (μ)\nConstant: service time");
+    } else {
+      paramItem->setToolTip("Service time");
+      distCombo->setToolTip("Constant: service time\nExponential: intensity (μ)");
+    }
+    
+    connect(distCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            [this, i]() { onDeviceDistributionChanged(i); });
+  }
+
+  // Devices controls
+  btnAddDevice_ = new QPushButton("Add device", this);
+  btnRemoveDevice_ = new QPushButton("Remove device", this);
+  auto* devicesBtns = new QHBoxLayout();
+  devicesBtns->addWidget(btnAddDevice_);
+  devicesBtns->addWidget(btnRemoveDevice_);
+  devicesLayout->addLayout(devicesBtns);
+  configLayout->addLayout(devicesLayout, 4, 0, 1, 2);
+  
   configLayout->setRowStretch(configLayout->rowCount(), 1);
 
   // Left panel: Control and metrics
@@ -168,18 +226,21 @@ MainWindow::MainWindow(QWidget* parent)
   connect(btnAddSource_, &QPushButton::clicked, this, &MainWindow::onAddSource);
   connect(btnRemoveSource_, &QPushButton::clicked, this,
           &MainWindow::onRemoveSource);
+  connect(btnAddDevice_, &QPushButton::clicked, this, &MainWindow::onAddDevice);
+  connect(btnRemoveDevice_, &QPushButton::clicked, this,
+          &MainWindow::onRemoveDevice);
 
   timer_.setInterval(16);
   connect(&timer_, &QTimer::timeout, this, &MainWindow::onTick);
 
+  updateSourceTableLabels();
+  updateDeviceTableLabels();
   rebuildSimulator();
   updateUi();
 }
 
 void MainWindow::updateConfigFromUI() {
-  config_.num_devices = numDevicesSpin_->value();
   config_.buffer_capacity = bufferCapacitySpin_->value();
-  config_.device_intensity = deviceIntensitySpin_->value();
   config_.max_arrivals = maxArrivalsSpin_->value();
   config_.seed = seedSpin_->value();
 
@@ -187,12 +248,32 @@ void MainWindow::updateConfigFromUI() {
   config_.sources.clear();
   for (int i = 0; i < sourcesTable_->rowCount(); ++i) {
     auto* idItem = sourcesTable_->item(i, 0);
-    auto* intervalItem = sourcesTable_->item(i, 1);
-    if (idItem && intervalItem) {
+    auto* paramItem = sourcesTable_->item(i, 1);
+    auto* distCombo = qobject_cast<QComboBox*>(sourcesTable_->cellWidget(i, 2));
+    if (idItem && paramItem && distCombo) {
       bool ok;
-      double interval = intervalItem->text().toDouble(&ok);
-      if (ok && interval > 0) {
-        config_.sources.push_back({static_cast<size_t>(i), interval});
+      double param = paramItem->text().toDouble(&ok);
+      if (ok && param > 0) {
+        DistributionType distType = static_cast<DistributionType>(
+            distCombo->currentData().toInt());
+        config_.sources.push_back({static_cast<size_t>(i), param, distType});
+      }
+    }
+  }
+
+  // Update devices from table
+  config_.devices.clear();
+  for (int i = 0; i < devicesTable_->rowCount(); ++i) {
+    auto* idItem = devicesTable_->item(i, 0);
+    auto* paramItem = devicesTable_->item(i, 1);
+    auto* distCombo = qobject_cast<QComboBox*>(devicesTable_->cellWidget(i, 2));
+    if (idItem && paramItem && distCombo) {
+      bool ok;
+      double param = paramItem->text().toDouble(&ok);
+      if (ok && param > 0) {
+        DistributionType distType = static_cast<DistributionType>(
+            distCombo->currentData().toInt());
+        config_.devices.push_back({static_cast<size_t>(i), param, distType});
       }
     }
   }
@@ -200,7 +281,13 @@ void MainWindow::updateConfigFromUI() {
 
 void MainWindow::rebuildSimulator() {
   updateConfigFromUI();
-  delete simulator_;
+  
+  if (simulator_) {
+    timelineWidget_->setSimulator(nullptr, config_);
+    delete simulator_;
+    simulator_ = nullptr;
+  }
+  
   simulator_ = new Simulator(config_);
   updateButtonStates();
   updateTimeline();
@@ -209,7 +296,7 @@ void MainWindow::rebuildSimulator() {
 void MainWindow::onAddSource() {
   int row = sourcesTable_->rowCount();
   sourcesTable_->insertRow(row);
-  sourcesTable_->setItem(row, 0, new QTableWidgetItem(QString::number(row)));
+  sourcesTable_->setItem(row, 0, new QTableWidgetItem(QString::number(row + 1)));
   sourcesTable_->item(row, 0)->setFlags(Qt::ItemIsSelectable |
                                         Qt::ItemIsEnabled);
   double defaultInterval = 3.0;
@@ -220,9 +307,23 @@ void MainWindow::onAddSource() {
                       : 0.0;
     if (ok && prev > 0.0) defaultInterval = prev;
   }
-  sourcesTable_->setItem(
-      row, 1, new QTableWidgetItem(QString::number(defaultInterval)));
+  auto* paramItem = new QTableWidgetItem(QString::number(defaultInterval));
+  sourcesTable_->setItem(row, 1, paramItem);
+  
+  auto* distCombo = new QComboBox(this);
+  distCombo->addItem("Constant", static_cast<int>(DistributionType::Constant));
+  distCombo->addItem("Exponential", static_cast<int>(DistributionType::Exponential));
+  distCombo->setCurrentIndex(0);
+  sourcesTable_->setCellWidget(row, 2, distCombo);
+  
+  paramItem->setToolTip("Interval between requests");
+  distCombo->setToolTip("Constant: interval between requests\nExponential: intensity (λ)");
+  
+  connect(distCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          [this, row]() { onSourceDistributionChanged(row); });
+  
   renumberSourcesTable();
+  updateSourceTableLabels();
 }
 
 void MainWindow::onRemoveSource() {
@@ -231,6 +332,7 @@ void MainWindow::onRemoveSource() {
   if (row >= 0 && sourcesTable_->rowCount() > 1) {
     sourcesTable_->removeRow(row);
     renumberSourcesTable();
+    updateSourceTableLabels();
   }
 }
 
@@ -242,6 +344,110 @@ void MainWindow::renumberSourcesTable() {
     sourcesTable_->item(i, 0)->setText(QString::number(i + 1));
     sourcesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable |
                                         Qt::ItemIsEnabled);
+  }
+}
+
+void MainWindow::onAddDevice() {
+  int row = devicesTable_->rowCount();
+  devicesTable_->insertRow(row);
+  devicesTable_->setItem(row, 0, new QTableWidgetItem(QString::number(row + 1)));
+  devicesTable_->item(row, 0)->setFlags(Qt::ItemIsSelectable |
+                                        Qt::ItemIsEnabled);
+  double defaultParam = 0.3;
+  if (row > 0) {
+    bool ok = false;
+    double prev = devicesTable_->item(row - 1, 1)
+                      ? devicesTable_->item(row - 1, 1)->text().toDouble(&ok)
+                      : 0.0;
+    if (ok && prev > 0.0) defaultParam = prev;
+  }
+  auto* paramItem = new QTableWidgetItem(QString::number(defaultParam));
+  devicesTable_->setItem(row, 1, paramItem);
+  
+  auto* distCombo = new QComboBox(this);
+  distCombo->addItem("Exponential", static_cast<int>(DistributionType::Exponential));
+  distCombo->addItem("Constant", static_cast<int>(DistributionType::Constant));
+  distCombo->setCurrentIndex(0);
+  devicesTable_->setCellWidget(row, 2, distCombo);
+  
+  paramItem->setToolTip("Intensity (μ)");
+  distCombo->setToolTip("Exponential: intensity (μ)\nConstant: service time");
+  
+  connect(distCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          [this, row]() { onDeviceDistributionChanged(row); });
+  
+  renumberDevicesTable();
+  updateDeviceTableLabels();
+}
+
+void MainWindow::onRemoveDevice() {
+  int row = devicesTable_->currentRow();
+  if (row < 0) row = devicesTable_->rowCount() - 1;
+  if (row >= 0 && devicesTable_->rowCount() > 1) {
+    devicesTable_->removeRow(row);
+    renumberDevicesTable();
+    updateDeviceTableLabels();
+  }
+}
+
+void MainWindow::renumberDevicesTable() {
+  for (int i = 0; i < devicesTable_->rowCount(); ++i) {
+    if (!devicesTable_->item(i, 0)) {
+      devicesTable_->setItem(i, 0, new QTableWidgetItem());
+    }
+    devicesTable_->item(i, 0)->setText(QString::number(i + 1));
+    devicesTable_->item(i, 0)->setFlags(Qt::ItemIsSelectable |
+                                        Qt::ItemIsEnabled);
+  }
+}
+
+void MainWindow::onSourceDistributionChanged(int /*row*/) {
+  updateSourceTableLabels();
+}
+
+void MainWindow::onDeviceDistributionChanged(int /*row*/) {
+  updateDeviceTableLabels();
+}
+
+void MainWindow::updateSourceTableLabels() {
+  QString headerText = "Parameter";
+  sourcesTable_->horizontalHeaderItem(1)->setText(headerText);
+  
+  for (int i = 0; i < sourcesTable_->rowCount(); ++i) {
+    auto* paramItem = sourcesTable_->item(i, 1);
+    auto* distCombo = qobject_cast<QComboBox*>(sourcesTable_->cellWidget(i, 2));
+    if (paramItem && distCombo) {
+      DistributionType distType = static_cast<DistributionType>(
+          distCombo->currentData().toInt());
+      if (distType == DistributionType::Exponential) {
+        paramItem->setToolTip("Intensity (λ)");
+        distCombo->setToolTip("Exponential: intensity (λ)\nConstant: interval between requests");
+      } else {
+        paramItem->setToolTip("Interval between requests");
+        distCombo->setToolTip("Constant: interval between requests\nExponential: intensity (λ)");
+      }
+    }
+  }
+}
+
+void MainWindow::updateDeviceTableLabels() {
+  QString headerText = "Parameter";
+  devicesTable_->horizontalHeaderItem(1)->setText(headerText);
+  
+  for (int i = 0; i < devicesTable_->rowCount(); ++i) {
+    auto* paramItem = devicesTable_->item(i, 1);
+    auto* distCombo = qobject_cast<QComboBox*>(devicesTable_->cellWidget(i, 2));
+    if (paramItem && distCombo) {
+      DistributionType distType = static_cast<DistributionType>(
+          distCombo->currentData().toInt());
+      if (distType == DistributionType::Exponential) {
+        paramItem->setToolTip("Intensity (μ)");
+        distCombo->setToolTip("Exponential: intensity (μ)\nConstant: service time");
+      } else {
+        paramItem->setToolTip("Service time");
+        distCombo->setToolTip("Constant: service time\nExponential: intensity (μ)");
+      }
+    }
   }
 }
 
@@ -317,13 +523,25 @@ void MainWindow::updateUi() {
   setWindowTitle(QString("Queuing System Simulator - Time: %1")
                      .arg(simulator_->get_current_time(), 0, 'f', 2));
 
-  // Calculate correct lambda (sum of all source intensities)
   double total_lambda = 0.0;
   for (const auto& src : config_.sources) {
-    total_lambda += 1.0 / src.arrival_interval;
+    if (src.arrival_distribution_type == DistributionType::Exponential) {
+      total_lambda += src.arrival_parameter;
+    } else {
+      total_lambda += 1.0 / src.arrival_parameter;
+    }
   }
-  double total_mu = config_.device_intensity * config_.num_devices;
-  double rho = total_lambda / total_mu;
+  
+  double total_mu = 0.0;
+  for (const auto& dev : config_.devices) {
+    if (dev.service_distribution_type == DistributionType::Exponential) {
+      total_mu += dev.service_parameter;
+    } else {
+      total_mu += 1.0 / dev.service_parameter;
+    }
+  }
+  
+  double rho = (total_mu > 0.0) ? (total_lambda / total_mu) : 0.0;
 
   currentTimeValue_->setText(
       QString::number(simulator_->get_current_time(), 'f', 2));
@@ -356,47 +574,39 @@ void MainWindow::updateButtonStates() {
     btnRunToEnd_->setEnabled(false);
     btnReset_->setEnabled(true);
 
-    // Configuration widgets enabled when no simulator
-    numDevicesSpin_->setEnabled(true);
     bufferCapacitySpin_->setEnabled(true);
-    deviceIntensitySpin_->setEnabled(true);
     maxArrivalsSpin_->setEnabled(true);
     seedSpin_->setEnabled(true);
     sourcesTable_->setEnabled(true);
+    devicesTable_->setEnabled(true);
     btnAddSource_->setEnabled(true);
     btnRemoveSource_->setEnabled(sourcesTable_ &&
                                  sourcesTable_->rowCount() > 1);
+    btnAddDevice_->setEnabled(true);
+    btnRemoveDevice_->setEnabled(devicesTable_ &&
+                                 devicesTable_->rowCount() > 1);
     return;
   }
 
   bool isFinished = simulator_->is_finished();
   bool hasData = simulator_->get_metrics().get_arrived() > 0;
 
-  // Step: enabled when not running and not finished
   btnStep_->setEnabled(!running_ && !isFinished);
-
-  // Run: enabled when not running and not finished
   btnRun_->setEnabled(!running_ && !isFinished);
-
-  // Pause: enabled when running
   btnPause_->setEnabled(running_);
-
-  // Run to end: enabled when not running and not finished
   btnRunToEnd_->setEnabled(!running_ && !isFinished);
-
-  // Reset: always enabled
   btnReset_->setEnabled(true);
 
-  // Configuration widgets: disabled when running or when simulation has started
   bool configEnabled = !running_ && !hasData;
-  numDevicesSpin_->setEnabled(configEnabled);
   bufferCapacitySpin_->setEnabled(configEnabled);
-  deviceIntensitySpin_->setEnabled(configEnabled);
   maxArrivalsSpin_->setEnabled(configEnabled);
   seedSpin_->setEnabled(configEnabled);
   sourcesTable_->setEnabled(configEnabled);
+  devicesTable_->setEnabled(configEnabled);
   btnAddSource_->setEnabled(configEnabled);
   btnRemoveSource_->setEnabled(configEnabled && sourcesTable_->rowCount() > 1);
+  btnAddDevice_->setEnabled(configEnabled);
+  btnRemoveDevice_->setEnabled(configEnabled && devicesTable_->rowCount() > 1);
 }
 
 void MainWindow::onStep() {
@@ -445,7 +655,9 @@ void MainWindow::onTick() {
 }
 
 void MainWindow::updateTimeline() {
-  timelineWidget_->setSimulator(simulator_, config_);
+  if (simulator_) {
+    timelineWidget_->setSimulator(simulator_, config_);
+  }
   timelineWidget_->updateCanvas();
 
   // Auto-scroll to current time when simulation is running or stepping

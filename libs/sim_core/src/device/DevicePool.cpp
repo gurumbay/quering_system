@@ -3,11 +3,13 @@
 #include <stdexcept>
 
 DevicePool::DevicePool(size_t num_devices,
-                       std::unique_ptr<IDeviceSelectionStrategy> strategy)
+                       std::unique_ptr<IDeviceSelectionStrategy> strategy,
+                       std::vector<std::unique_ptr<IDistribution>> distributions)
     : strategy_(std::move(strategy)) {
   devices_.reserve(num_devices);
   for (size_t i = 0; i < num_devices; ++i) {
-    devices_.emplace_back(std::make_unique<Device>(i));
+    auto distribution = std::move(distributions[i]);
+    devices_.emplace_back(std::make_unique<Device>(i, std::move(distribution)));
   }
 }
 
@@ -40,6 +42,19 @@ std::vector<bool> DevicePool::get_device_states() const {
     }
   }
   return states;
+}
+
+std::vector<double> DevicePool::get_all_next_event_times() const {
+  std::vector<double> times;
+  times.reserve(devices_.size());
+  for (const auto& device : devices_) {
+    if (device) {
+      times.push_back(device->get_next_service_end_time());
+    } else {
+      times.push_back(Device::NO_EVENT_TIME);
+    }
+  }
+  return times;
 }
 
 const std::vector<std::unique_ptr<Device>>& DevicePool::get_all_devices() const {

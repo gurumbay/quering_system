@@ -2,10 +2,12 @@
 
 #include "sim/model/Request.h"
 
-Device::Device(size_t id)
+Device::Device(size_t id, std::unique_ptr<IDistribution> distribution)
     : id_(id),
       busy_(false),
-      current_request_(nullptr) {}
+      current_request_(nullptr),
+      service_distribution_(std::move(distribution)),
+      next_service_end_time_(NO_EVENT_TIME) {}
 
 bool Device::is_free() const { return !busy_; }
 
@@ -29,4 +31,18 @@ size_t Device::get_id() const { return id_; }
 
 std::shared_ptr<Request> Device::get_current_request() const {
   return current_request_;
+}
+
+double Device::schedule_next_service_end(double current_time) {
+  double service_time = service_distribution_->generate();
+  next_service_end_time_ = current_time + service_time;
+  return next_service_end_time_;
+}
+
+double Device::get_next_service_end_time() const {
+  return next_service_end_time_;
+}
+
+void Device::clear_next_service_end_time() {
+  next_service_end_time_ = NO_EVENT_TIME;
 }

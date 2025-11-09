@@ -12,9 +12,8 @@
 #include "sim/event/EventDispatcher.h"
 #include "sim/metrics/Metrics.h"
 #include "sim/simulator/SimulationConfig.h"
-#include "sim/source/SourceManager.h"
+#include "sim/source/SourcePool.h"
 #include "sim/observers/ISimulationObserver.h"
-#include "sim/utils/IDistribution.h"
 
 class Simulator {
  public:
@@ -49,12 +48,11 @@ class Simulator {
   SimulationConfig config_;
 
   // Core components
-  std::unique_ptr<DevicePool> device_pool_;
   Buffer buffer_;
-  EventCalendar calendar_;
   Metrics metrics_;
-  std::unique_ptr<IDistribution> service_distribution_;
-  std::unique_ptr<SourceManager> source_manager_;
+  EventCalendar calendar_;
+  std::unique_ptr<DevicePool> device_pool_;
+  std::unique_ptr<SourcePool> source_pool_;
   std::unique_ptr<EventDispatcher> dispatcher_;
 
   // Simulation state

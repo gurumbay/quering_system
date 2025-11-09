@@ -12,7 +12,8 @@ add_library(sim_core STATIC
     src/model/Request.cpp
     src/device/RoundRobinStrategy.cpp
     src/simulator/Simulator.cpp
-    src/source/SourceManager.cpp
+    src/source/Source.cpp
+    src/source/SourcePool.cpp
     src/simulator/ConfigurationManager.cpp
     src/observers/MetricsObserver.cpp
     src/utils/ConstantDistribution.cpp

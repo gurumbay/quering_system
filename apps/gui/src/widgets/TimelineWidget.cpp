@@ -61,7 +61,7 @@ QSize TimelineCanvas::sizeHint() const {
 
   // Calculate required height based on number of components
   int numLines =
-      static_cast<int>(config_.sources.size() + config_.num_devices +
+      static_cast<int>(config_.sources.size() + config_.devices.size() +
                        config_.buffer_capacity + 1);  // +1 for refusal line
 
   int height = MARGIN_TOP + numLines * LINE_HEIGHT + MARGIN_BOTTOM;
@@ -101,7 +101,7 @@ QSize TimelineCanvas::minimumSizeHint() const {
 
   // Calculate minimum height based on components
   int numLines =
-      static_cast<int>(config_.sources.size() + config_.num_devices +
+      static_cast<int>(config_.sources.size() + config_.devices.size() +
                        config_.buffer_capacity + 1);  // +1 for refusal line
 
   int minHeight = MARGIN_TOP + numLines * LINE_HEIGHT + MARGIN_BOTTOM;
@@ -265,7 +265,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
   }
 
   // Draw device lines and labels
-  for (size_t i = 0; i < config_.num_devices; ++i) {
+  for (size_t i = 0; i < config_.devices.size(); ++i) {
     painter.setPen(QPen(Qt::black, 2));
     painter.drawLine(MARGIN_LEFT, yPos, MARGIN_LEFT + drawWidth, yPos);
 
@@ -366,7 +366,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
 
   int bufferStartY = MARGIN_TOP + 40 +
                      (static_cast<int>(config_.sources.size()) +
-                      static_cast<int>(config_.num_devices)) *
+                      static_cast<int>(config_.devices.size())) *
                          LINE_HEIGHT;
 
   // Draw events
@@ -594,17 +594,13 @@ TimelineWidget::TimelineWidget(QWidget* parent) : QWidget(parent), timelineObser
 
 void TimelineWidget::setSimulator(Simulator* sim,
                                   const SimulationConfig& config) {
-  // Create and add observer only if simulator changed
   if (sim && sim != canvas_->getSimulator()) {
-    // Create a new observer for the new simulator
-    // (Simulator takes ownership, we keep raw pointer for access)
     auto observer = std::make_unique<TimelineObserver>();
     timelineObserver_ = observer.get();
     sim->add_observer(std::move(observer));
   } else if (!sim) {
     timelineObserver_ = nullptr;
   }
-  // If sim == canvas_->getSimulator(), keep existing timelineObserver_
   
   canvas_->setSimulator(sim, config, timelineObserver_);
 }

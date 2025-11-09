@@ -117,7 +117,7 @@ void EventCalendarWidget::populateTable(Simulator* sim,
   row++;
 
   // Devices rows
-  for (size_t i = 0; i < config.num_devices; ++i) {
+  for (size_t i = 0; i < config.devices.size(); ++i) {
     table_->insertRow(row);
 
     // Entity name

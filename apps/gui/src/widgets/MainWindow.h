@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QGroupBox>
 #include <QLabel>
@@ -24,6 +25,10 @@ class MainWindow : public QMainWindow {
  private slots:
   void onAddSource();
   void onRemoveSource();
+  void onAddDevice();
+  void onRemoveDevice();
+  void onSourceDistributionChanged(int row);
+  void onDeviceDistributionChanged(int row);
 
   void onStep();
   void onRun();
@@ -58,14 +63,15 @@ class MainWindow : public QMainWindow {
   QLabel* rhoValue_;
 
   // Configuration widgets
-  QSpinBox* numDevicesSpin_;
   QSpinBox* bufferCapacitySpin_;
-  QDoubleSpinBox* deviceIntensitySpin_;
   QSpinBox* maxArrivalsSpin_;
   QSpinBox* seedSpin_;
   QTableWidget* sourcesTable_;
   QPushButton* btnAddSource_;
   QPushButton* btnRemoveSource_;
+  QTableWidget* devicesTable_;
+  QPushButton* btnAddDevice_;
+  QPushButton* btnRemoveDevice_;
 
   // Control buttons
   QPushButton* btnStep_;
@@ -88,5 +94,8 @@ class MainWindow : public QMainWindow {
 
   // Helpers
   void renumberSourcesTable();
+  void renumberDevicesTable();
+  void updateSourceTableLabels();
+  void updateDeviceTableLabels();
   void setupResultsGroup();
 };

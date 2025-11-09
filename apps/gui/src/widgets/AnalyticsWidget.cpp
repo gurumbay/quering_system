@@ -148,7 +148,7 @@ void AnalyticsWidget::populateDevicesTable(Simulator* sim,
   double currentTime = sim->get_current_time();
   devicesTable_->setRowCount(0);
 
-  for (size_t i = 0; i < config.num_devices; ++i) {
+  for (size_t i = 0; i < config.devices.size(); ++i) {
     int row = devicesTable_->rowCount();
     devicesTable_->insertRow(row);
 

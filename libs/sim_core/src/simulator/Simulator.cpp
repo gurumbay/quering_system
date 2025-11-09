@@ -5,6 +5,7 @@
 #include "sim/simulator/ConfigurationManager.h"
 #include "sim/event/Event.h"
 #include "sim/event/EventDispatcher.h"
+#include "sim/model/Request.h"
 #include "sim/observers/MetricsObserver.h"
 
 Simulator::Simulator(const SimulationConfig& config)
@@ -15,12 +16,11 @@ Simulator::Simulator(const SimulationConfig& config)
 
   // Create core components
   device_pool_ = ConfigurationManager::create_device_pool(config);
-  service_distribution_ = ConfigurationManager::create_distribution(config);
-  source_manager_ = std::make_unique<SourceManager>(config, calendar_);
+  source_pool_ = ConfigurationManager::create_source_pool(config);
 
   dispatcher_ = std::make_unique<EventDispatcher>(
-      *source_manager_, *device_pool_, buffer_, calendar_,
-      *service_distribution_, metrics_, config_, observers_);
+      *source_pool_, *device_pool_, buffer_, calendar_,
+      metrics_, config_, observers_);
 
   // Initialize simulation state
   current_time_ = 0.0;
@@ -30,7 +30,12 @@ Simulator::Simulator(const SimulationConfig& config)
   observers_.push_back(std::move(metrics_observer));
 
   // Schedule initial arrivals for all sources
-  source_manager_->schedule_initial_arrivals();
+  for (auto& source : source_pool_->get_all_sources()) {
+    double next_time = source->schedule_next_arrival(0.0);
+    Event arrival_event(next_time, EventType::arrival,
+                       std::weak_ptr<Request>(), nullptr, source->get_id());
+    calendar_.schedule(arrival_event);
+  }
 }
 
 bool Simulator::process_next_event() {
@@ -78,15 +83,15 @@ std::vector<bool> Simulator::get_device_states() const {
 }
 
 std::vector<double> Simulator::get_source_next_event_times() const {
-  return source_manager_->get_all_next_event_times();
+  return source_pool_->get_all_next_event_times();
 }
 
 std::vector<double> Simulator::get_device_next_event_times() const {
-  return calendar_.get_all_device_next_times(config_.num_devices);
+  return device_pool_->get_all_next_event_times();
 }
 
 std::vector<bool> Simulator::get_source_states() const {
-  return source_manager_->get_all_source_states();
+  return source_pool_->get_source_states();
 }
 
 bool Simulator::is_finished() const {

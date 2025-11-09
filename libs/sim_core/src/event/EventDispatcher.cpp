@@ -1,19 +1,19 @@
 #include "sim/event/EventDispatcher.h"
 
 #include "sim/device/Device.h"
+#include "sim/event/Event.h"
 #include "sim/model/Request.h"
+#include "sim/source/Source.h"
 #include "sim/simulator/SimulationConfig.h"
 
 EventDispatcher::EventDispatcher(
-    SourceManager& source_manager, DevicePool& device_pool, Buffer& buffer,
-    EventCalendar& calendar, IDistribution& service_distribution,
-    Metrics& metrics, const SimulationConfig& config,
+    SourcePool& source_pool, DevicePool& device_pool, Buffer& buffer,
+    EventCalendar& calendar, Metrics& metrics, const SimulationConfig& config,
     std::vector<std::unique_ptr<ISimulationObserver>>& observers)
-    : source_manager_(source_manager),
+    : source_pool_(source_pool),
       device_pool_(device_pool),
       buffer_(buffer),
       calendar_(calendar),
-      service_distribution_(service_distribution),
       metrics_(metrics),
       config_(config),
       observers_(observers) {}
@@ -35,8 +35,16 @@ void EventDispatcher::handle_arrival(size_t source_id, double current_time) {
     handle_buffer_placement(request, source_id, current_time);
   }
 
-  source_manager_.schedule_next_arrival(
-      source_id, current_time, metrics_.get_arrived(), config_.max_arrivals);
+  // Schedule next arrival event
+  if (metrics_.get_arrived() < config_.max_arrivals) {
+    Source& source = source_pool_.get_source(source_id);
+    double next_time = source.schedule_next_arrival(current_time);
+    if (next_time != Source::NO_EVENT_TIME) {
+      Event next_arrival(next_time, EventType::arrival,
+                        std::weak_ptr<Request>(), nullptr, source_id);
+      calendar_.schedule(next_arrival);
+    }
+  }
 }
 
 void EventDispatcher::handle_service_end(Device* device, double current_time) {
@@ -77,19 +85,6 @@ void EventDispatcher::handle_service_end(Device* device, double current_time) {
   }
 }
 
-double EventDispatcher::schedule_service_end(Device* device,
-                                             std::shared_ptr<Request> request,
-                                             double end_time) {
-  if (!device || !request) {
-    return end_time;
-  }
-
-  Event service_end_event(end_time, EventType::service_end,
-                          std::weak_ptr<Request>(request), device);
-  calendar_.schedule(service_end_event);
-  return end_time;
-}
-
 void EventDispatcher::start_device_service(Device* device,
                                            std::shared_ptr<Request> request,
                                            double current_time) {
@@ -98,10 +93,11 @@ void EventDispatcher::start_device_service(Device* device,
   }
 
   device->start_service(request, current_time);
-
-  double service_time = service_distribution_.generate();
-  double service_end_time = current_time + service_time;
-  schedule_service_end(device, request, service_end_time);
+  
+  double service_end_time = device->schedule_next_service_end(current_time);
+  Event service_end_event(service_end_time, EventType::service_end,
+                         std::weak_ptr<Request>(request), device);
+  calendar_.schedule(service_end_event);
 
   ServiceStartEvent event{request->get_id(), request->get_source_id(),
                           device->get_id(), current_time};

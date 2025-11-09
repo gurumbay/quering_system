@@ -41,15 +41,19 @@ void print_state(const Simulator& simulator) {
 
 auto main() -> int {
   SimulationConfig config;
-  config.num_devices = 3;
   config.buffer_capacity = 3;
-  config.device_intensity = 0.3;  // μ - requests per time unit
   config.max_arrivals = 1000;
   config.seed = 52;
 
-  config.sources.push_back({0, 3.0});
-  config.sources.push_back({1, 4.0});
-  config.sources.push_back({2, 5.0});
+  // Sources
+  config.sources.push_back({0, 3.0, DistributionType::Constant});
+  config.sources.push_back({1, 4.0, DistributionType::Constant});
+  config.sources.push_back({2, 5.0, DistributionType::Constant});
+
+  // Devices
+  config.devices.push_back({0, 0.3, DistributionType::Exponential});  // μ = 0.3
+  config.devices.push_back({1, 0.3, DistributionType::Exponential});
+  config.devices.push_back({2, 0.3, DistributionType::Exponential});
 
   Simulator simulator(config);
 

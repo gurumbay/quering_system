@@ -7,17 +7,20 @@
 
 #include "sim/device/Device.h"
 #include "sim/device/IDeviceSelectionStrategy.h"
+#include "sim/utils/IDistribution.h"
 
 class DevicePool {
  public:
   DevicePool(size_t num_devices,
-             std::unique_ptr<IDeviceSelectionStrategy> strategy);
+             std::unique_ptr<IDeviceSelectionStrategy> strategy,
+             std::vector<std::unique_ptr<IDistribution>> distributions);
 
   Device* find_free_device();
   Device& get_device(size_t id);
   const Device& get_device(size_t id) const;
   const std::vector<std::unique_ptr<Device>>& get_all_devices() const;
   std::vector<bool> get_device_states() const;
+  std::vector<double> get_all_next_event_times() const;
   size_t size() const;
   void reset_strategy();
 
