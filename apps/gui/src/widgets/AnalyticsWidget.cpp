@@ -145,7 +145,7 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
 void AnalyticsWidget::populateDevicesTable(Simulator* sim,
                                            const SimulationConfig& config) {
   Metrics m = sim->get_metrics();
-  double totalTime = sim->get_total_simulation_time();
+  double currentTime = sim->get_current_time();
   devicesTable_->setRowCount(0);
 
   for (size_t i = 0; i < config.num_devices; ++i) {
@@ -158,7 +158,7 @@ void AnalyticsWidget::populateDevicesTable(Simulator* sim,
     devicesTable_->setItem(row, 0, deviceItem);
 
     // Utilization coefficient
-    double utilization = m.get_device_utilization(i, totalTime);
+    double utilization = m.get_device_utilization(i, currentTime);
     auto* utilItem = new QTableWidgetItem(QString::number(utilization, 'f', 4));
     utilItem->setFlags(Qt::ItemIsEnabled);
     utilItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);

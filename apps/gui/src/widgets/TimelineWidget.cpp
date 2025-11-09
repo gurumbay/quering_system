@@ -7,17 +7,21 @@
 #include <algorithm>
 #include <cmath>
 
+#include "TimelineObserver.h"
+
 // TimelineCanvas implementation
 TimelineCanvas::TimelineCanvas(QWidget* parent)
-    : QWidget(parent), simulator_(nullptr), zoomLevel_(1.0) {
+    : QWidget(parent), simulator_(nullptr), zoomLevel_(1.0), timelineObserver_(nullptr) {
   setMouseTracking(true);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
 void TimelineCanvas::setSimulator(Simulator* sim,
-                                  const SimulationConfig& config) {
+                                  const SimulationConfig& config,
+                                  TimelineObserver* observer) {
   simulator_ = sim;
   config_ = config;
+  timelineObserver_ = observer;
   updateSize();
 }
 
@@ -64,8 +68,7 @@ QSize TimelineCanvas::sizeHint() const {
 
   // Calculate required width based on time range and zoom
   double currentTime = simulator_->get_current_time();
-  Metrics m = simulator_->get_metrics();
-  const auto& events = m.get_timeline_events();
+  const auto& events = timelineObserver_ ? timelineObserver_->get_events() : std::vector<TimelineEvent>();
 
   double maxEventTime = currentTime;
   for (const auto& event : events) {
@@ -181,8 +184,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
   double currentTime = simulator_->get_current_time();
 
   // Calculate max time from events
-  Metrics m = simulator_->get_metrics();
-  const auto& events = m.get_timeline_events();
+  const auto& events = timelineObserver_ ? timelineObserver_->get_events() : std::vector<TimelineEvent>();
   double maxEventTime = currentTime;
   for (const auto& event : events) {
     if (event.time > maxEventTime) {
@@ -469,7 +471,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
 }
 
 // TimelineWidget implementation
-TimelineWidget::TimelineWidget(QWidget* parent) : QWidget(parent) {
+TimelineWidget::TimelineWidget(QWidget* parent) : QWidget(parent), timelineObserver_(nullptr) {
   auto* mainLayout = new QVBoxLayout(this);
   mainLayout->setContentsMargins(0, 0, 0, 0);
   mainLayout->setSpacing(0);
@@ -592,18 +594,29 @@ TimelineWidget::TimelineWidget(QWidget* parent) : QWidget(parent) {
 
 void TimelineWidget::setSimulator(Simulator* sim,
                                   const SimulationConfig& config) {
-  canvas_->setSimulator(sim, config);
+  // Create and add observer only if simulator changed
+  if (sim && sim != canvas_->getSimulator()) {
+    // Create a new observer for the new simulator
+    // (Simulator takes ownership, we keep raw pointer for access)
+    auto observer = std::make_unique<TimelineObserver>();
+    timelineObserver_ = observer.get();
+    sim->add_observer(std::move(observer));
+  } else if (!sim) {
+    timelineObserver_ = nullptr;
+  }
+  // If sim == canvas_->getSimulator(), keep existing timelineObserver_
+  
+  canvas_->setSimulator(sim, config, timelineObserver_);
 }
 
 void TimelineWidget::updateCanvas() { canvas_->updateSize(); }
 
 void TimelineWidget::scrollToCurrentTime() {
   Simulator* sim = canvas_->getSimulator();
-  if (!canvas_ || !sim) return;
+  if (!canvas_ || !sim || !timelineObserver_) return;
 
   double currentTime = sim->get_current_time();
-  Metrics m = sim->get_metrics();
-  const auto& events = m.get_timeline_events();
+  const auto& events = timelineObserver_->get_events();
 
   double maxEventTime = currentTime;
   for (const auto& event : events) {

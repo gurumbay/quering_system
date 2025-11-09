@@ -17,6 +17,8 @@ set(GUI_SOURCES
     src/widgets/AnalyticsWidget.h
     src/widgets/EventCalendarWidget.cpp
     src/widgets/EventCalendarWidget.h
+    src/widgets/TimelineObserver.cpp
+    src/widgets/TimelineObserver.h
     src/widgets/TimelineWidget.cpp
     src/widgets/TimelineWidget.h
 )

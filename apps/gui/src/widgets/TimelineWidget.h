@@ -6,8 +6,10 @@
 #include <QWheelEvent>
 #include <QWidget>
 #include <map>
+#include <memory>
 #include <set>
 
+#include "TimelineObserver.h"
 #include "sim/core/Simulator.h"
 
 // Canvas that does the actual drawing
@@ -16,7 +18,7 @@ class TimelineCanvas : public QWidget {
  public:
   explicit TimelineCanvas(QWidget* parent = nullptr);
 
-  void setSimulator(Simulator* sim, const SimulationConfig& config);
+  void setSimulator(Simulator* sim, const SimulationConfig& config, TimelineObserver* observer);
   void updateSize();
   void setZoomLevel(double zoom);
   double getZoomLevel() const { return zoomLevel_; }
@@ -41,6 +43,7 @@ class TimelineCanvas : public QWidget {
   Simulator* simulator_ = nullptr;
   SimulationConfig config_;
   double zoomLevel_ = 1.0;
+  TimelineObserver* timelineObserver_ = nullptr;  // Non-owning pointer
 
  public:
   // Drawing parameters
@@ -76,4 +79,5 @@ class TimelineWidget : public QWidget {
   QPushButton* btnZoomIn_;
   QPushButton* btnZoomOut_;
   QLabel* zoomLabel_;
+  TimelineObserver* timelineObserver_;  // Non-owning pointer, Simulator owns it
 };
