@@ -4,6 +4,41 @@
 #include "sim/core/Simulator.h"
 #include "sim/core/SimulationConfig.h"
 
+void print_state(const Simulator& simulator) {
+  std::cout << "\n=== SIMULATION STATE ===" << std::endl;
+  std::cout << "Time: " << simulator.get_current_time() << std::endl;
+  std::cout << "Calendar size: " << simulator.get_calendar_size() << std::endl;
+  
+  const auto& buffer = simulator.get_buffer();
+  std::cout << "Buffer: " << buffer.get_size() << "/" << buffer.get_capacity()
+            << std::endl;
+
+  std::cout << "Devices:" << std::endl;
+  const auto& device_pool = simulator.get_device_pool();
+  const auto& devices = device_pool.get_all_devices();
+  for (size_t i = 0; i < devices.size(); ++i) {
+    if (devices[i]) {
+      std::cout << "  Device " << i << ": "
+                << (devices[i]->is_free() ? "FREE" : "BUSY");
+      if (!devices[i]->is_free()) {
+        auto request = devices[i]->get_current_request();
+        if (request) {
+          std::cout << " (request " << request->get_id() << ")";
+        }
+      }
+      std::cout << std::endl;
+    }
+  }
+
+  const auto& metrics = simulator.get_metrics();
+  std::cout << "Metrics:" << std::endl;
+  std::cout << "  Arrived: " << metrics.get_arrived() << std::endl;
+  std::cout << "  Refused: " << metrics.get_refused() << std::endl;
+  std::cout << "  Completed: " << metrics.get_completed() << std::endl;
+  std::cout << "  P_ref: " << metrics.get_refusal_probability() << std::endl;
+  std::cout << "========================\n" << std::endl;
+}
+
 auto main() -> int {
   SimulationConfig config;
   config.num_devices = 3;
@@ -37,7 +72,7 @@ auto main() -> int {
       break;
     } else {  // TEMP
       simulator.step();
-      simulator.print_state();
+      print_state(simulator);
       step_count++;
     }
     // } else if (command == "s") {
