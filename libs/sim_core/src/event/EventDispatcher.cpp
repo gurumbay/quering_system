@@ -19,7 +19,9 @@ EventDispatcher::EventDispatcher(
       observers_(observers) {}
 
 void EventDispatcher::handle_arrival(size_t source_id, double current_time) {
+  Source& source = source_pool_.get_source(source_id);
   if (metrics_.get_arrived() >= config_.max_arrivals) {
+    source.clear_next_arrival_time();
     return;
   }
 
@@ -35,15 +37,15 @@ void EventDispatcher::handle_arrival(size_t source_id, double current_time) {
     handle_buffer_placement(request, source_id, current_time);
   }
 
-  // Schedule next arrival event
   if (metrics_.get_arrived() < config_.max_arrivals) {
-    Source& source = source_pool_.get_source(source_id);
     double next_time = source.schedule_next_arrival(current_time);
     if (next_time != Source::NO_EVENT_TIME) {
       Event next_arrival(next_time, EventType::arrival,
                         std::weak_ptr<Request>(), nullptr, source_id);
       calendar_.schedule(next_arrival);
     }
+  } else {
+    source.clear_next_arrival_time();
   }
 }
 
@@ -70,8 +72,8 @@ void EventDispatcher::handle_service_end(Device* device, double current_time) {
                           service_time};
     notify_service_end(event);
   }
-
-  // Check buffer for waiting requests
+  
+  device->clear_next_service_end_time();
   if (!buffer_.is_empty()) {
     auto [next_request, buffer_slot_index] = buffer_.take_request();
     if (next_request) {

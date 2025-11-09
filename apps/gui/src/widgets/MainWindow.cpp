@@ -26,26 +26,27 @@ MainWindow::MainWindow(QWidget* parent)
 
   // Left panel: Configuration
   auto* configGroup = new QGroupBox("Simulation Configuration", this);
-  configGroup->setMaximumWidth(300);
+  configGroup->setMaximumWidth(350);
   auto* configLayout = new QGridLayout(configGroup);
 
   // Basic parameters
-  bufferCapacitySpin_ = new QSpinBox(this);
-  bufferCapacitySpin_->setRange(1, 100);
-  bufferCapacitySpin_->setValue(static_cast<int>(config_.buffer_capacity));
-  configLayout->addWidget(bufferCapacitySpin_, 0, 1);
-
-  configLayout->addWidget(new QLabel("Max arrivals:"), 1, 0);
+  configLayout->addWidget(new QLabel("Max arrivals:"), 0, 0);
   maxArrivalsSpin_ = new QSpinBox(this);
   maxArrivalsSpin_->setRange(1, 10000);
   maxArrivalsSpin_->setValue(static_cast<int>(config_.max_arrivals));
-  configLayout->addWidget(maxArrivalsSpin_, 1, 1);
+  configLayout->addWidget(maxArrivalsSpin_, 0, 1);
 
-  configLayout->addWidget(new QLabel("Seed:"), 2, 0);
+  configLayout->addWidget(new QLabel("Seed:"), 1, 0);
   seedSpin_ = new QSpinBox(this);
   seedSpin_->setRange(1, 999999);
   seedSpin_->setValue(static_cast<int>(config_.seed));
-  configLayout->addWidget(seedSpin_, 2, 1);
+  configLayout->addWidget(seedSpin_, 1, 1);
+
+  configLayout->addWidget(new QLabel("Buffer:"), 2, 0);
+  bufferCapacitySpin_ = new QSpinBox(this);
+  bufferCapacitySpin_->setRange(1, 100);
+  bufferCapacitySpin_->setValue(static_cast<int>(config_.buffer_capacity));
+  configLayout->addWidget(bufferCapacitySpin_, 2, 1);
 
   // Sources block
   auto* sourcesLayout = new QVBoxLayout();
@@ -155,7 +156,7 @@ MainWindow::MainWindow(QWidget* parent)
 
   // Left panel: Control and metrics
   auto* controlGroup = new QGroupBox("Simulation Control", this);
-  controlGroup->setMaximumWidth(300);
+  controlGroup->setMaximumWidth(350);
   auto* controlLayout = new QVBoxLayout(controlGroup);
 
   btnStep_ = new QPushButton("Step", this);
@@ -205,7 +206,7 @@ MainWindow::MainWindow(QWidget* parent)
   // Results group
   setupResultsGroup();
   leftLayout->addWidget(resultsGroup_);
-  leftWidget->setMaximumWidth(320);
+  leftWidget->setMaximumWidth(370);
 
   // Right side: Tab widget
   mainLayout->addWidget(leftWidget, 0);   // Fixed width left panel
