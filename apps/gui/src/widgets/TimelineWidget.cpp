@@ -200,27 +200,49 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
   painter.drawLine(MARGIN_LEFT, MARGIN_TOP, MARGIN_LEFT + drawWidth,
                    MARGIN_TOP);
 
-  // Calculate nice time step based on zoom level
-  // At higher zoom, we want more detailed time markers
-  double visibleTimeRange =
-      maxTime / zoomLevel_;  // Approximate visible time range
+  // Calculate visible time interval based on horizontal scroll/viewport
+  QScrollArea* scrollArea = qobject_cast<QScrollArea*>(parent()->parent());
+  int scrollX = scrollArea ? scrollArea->horizontalScrollBar()->value() : 0;
+  int viewportWidth = scrollArea ? scrollArea->viewport()->width() : width();
+
+  // Map visible canvas x range to time range
+  double leftVisibleX = static_cast<double>(scrollX);
+  double rightVisibleX = static_cast<double>(scrollX + viewportWidth);
+  double timeStart = ((leftVisibleX - MARGIN_LEFT) / static_cast<double>(drawWidth)) * maxTime;
+  double timeEnd = ((rightVisibleX - MARGIN_LEFT) / static_cast<double>(drawWidth)) * maxTime;
+  if (timeStart < 0.0) timeStart = 0.0;
+  if (timeEnd < 0.0) timeEnd = 0.0;
+  if (timeEnd > maxTime) timeEnd = maxTime;
+  if (timeStart > maxTime) timeStart = maxTime;
+
+  double visibleTimeRange = timeEnd - timeStart;
+  if (visibleTimeRange <= 0.0) visibleTimeRange = maxTime;
+
+  // Choose a nice time step based on visible range
   double timeStep = calculateNiceTimeStep(visibleTimeRange);
 
-  // Draw time markers with proper divisions
-  painter.setFont(QFont("Arial", 9));
-  double time = 0.0;
-  while (time <= maxTime + timeStep * 0.1) {
-    int x = MARGIN_LEFT + static_cast<int>((drawWidth * time) / maxTime);
+  // Ensure markers are not too close in pixels; increase timeStep if needed
+  const int minPixelSpacing = 60; // minimum pixels between ticks for readability
+  double pixelPerTime = static_cast<double>(drawWidth) / maxTime;
+  double pixelStep = timeStep * pixelPerTime;
+  while (pixelStep < minPixelSpacing) {
+    timeStep *= 2.0;
+    pixelStep = timeStep * pixelPerTime;
+    // avoid infinite loop
+    if (timeStep > maxTime) break;
+  }
 
-    // Skip markers that are too close together (less than 40 pixels apart)
-    if (x > MARGIN_LEFT) {
-      int prevX = MARGIN_LEFT +
-                  static_cast<int>((drawWidth * (time - timeStep)) / maxTime);
-      if (x - prevX < 40) {
-        time += timeStep;
-        continue;
-      }
-    }
+  // Draw time markers for the visible interval only
+  painter.setFont(QFont("Arial", 9));
+  // Start from the first multiple of timeStep <= timeEnd and >= timeStart
+  double firstTick = std::floor(timeStart / timeStep) * timeStep;
+  if (firstTick < 0.0) firstTick = 0.0;
+  // If firstTick is slightly before timeStart, advance to the next tick
+  while (firstTick + 1e-9 < timeStart) firstTick += timeStep;
+
+  for (double t = firstTick; t <= timeEnd + timeStep * 0.1; t += timeStep) {
+    if (t < 0.0 || t > maxTime) continue;
+    int x = MARGIN_LEFT + static_cast<int>((drawWidth * t) / maxTime);
 
     painter.setPen(QPen(Qt::black, 2));
     painter.drawLine(x, MARGIN_TOP - 8, x, MARGIN_TOP + 8);
@@ -231,11 +253,9 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
 
     // Draw label
     painter.setPen(Qt::black);
-    QString label = formatTimeValue(time);
+    QString label = formatTimeValue(t);
     QRect textRect(x - 40, MARGIN_TOP - 30, 80, 20);
     painter.drawText(textRect, Qt::AlignCenter, label);
-
-    time += timeStep;
   }
 
   // Draw component lines with labels
@@ -251,10 +271,6 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
     // Draw source label (always visible, positioned relative to viewport)
     painter.setPen(Qt::black);
     QString label = QString("И%1").arg(i + 1);
-
-    // Get current scroll position to keep labels visible
-    QScrollArea* scrollArea = qobject_cast<QScrollArea*>(parent()->parent());
-    int scrollX = scrollArea ? scrollArea->horizontalScrollBar()->value() : 0;
 
     // Position label so it's always visible (5px from left edge of viewport)
     int labelX = std::max(5, 5 - scrollX);
@@ -273,10 +289,6 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
     painter.setPen(Qt::black);
     QString label = QString("П%1").arg(i + 1);
 
-    // Get current scroll position to keep labels visible
-    QScrollArea* scrollArea = qobject_cast<QScrollArea*>(parent()->parent());
-    int scrollX = scrollArea ? scrollArea->horizontalScrollBar()->value() : 0;
-
     // Position label so it's always visible (5px from left edge of viewport)
     int labelX = std::max(5, 5 - scrollX);
     QRect labelRect(labelX, yPos - 8, MARGIN_LEFT - 10, 16);
@@ -294,10 +306,6 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
     painter.setPen(Qt::black);
     QString label = QString("Б%1").arg(i + 1);
 
-    // Get current scroll position to keep labels visible
-    QScrollArea* scrollArea = qobject_cast<QScrollArea*>(parent()->parent());
-    int scrollX = scrollArea ? scrollArea->horizontalScrollBar()->value() : 0;
-
     // Position label so it's always visible (5px from left edge of viewport)
     int labelX = std::max(5, 5 - scrollX);
     QRect labelRect(labelX, yPos - 8, MARGIN_LEFT - 10, 16);
@@ -313,10 +321,6 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
   // Draw refusal label
   painter.setPen(Qt::red);
   QString label = "Отказ";
-
-  // Get current scroll position to keep labels visible
-  QScrollArea* scrollArea = qobject_cast<QScrollArea*>(parent()->parent());
-  int scrollX = scrollArea ? scrollArea->horizontalScrollBar()->value() : 0;
 
   // Position label so it's always visible (5px from left edge of viewport)
   int labelX = std::max(5, 5 - scrollX);

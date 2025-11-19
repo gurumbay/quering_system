@@ -4,6 +4,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QVBoxLayout>
+#include <QSizePolicy>
 
 #include "AnalyticsWidget.h"
 #include "EventCalendarWidget.h"
@@ -174,8 +175,14 @@ MainWindow::MainWindow(QWidget* parent)
   // Timeline widget
   timelineWidget_ = new TimelineWidget(this);
 
+  // Ensure timeline can expand
+  timelineWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
   // Event calendar widget
   eventCalendarWidget_ = new EventCalendarWidget(this);
+
+  // Allow event calendar to expand vertically when space is available
+  eventCalendarWidget_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
   // Analytics widget
   analyticsWidget_ = new AnalyticsWidget(this);
@@ -188,8 +195,9 @@ MainWindow::MainWindow(QWidget* parent)
   auto* timelineTabLayout = new QVBoxLayout(timelineTabWidget);
   timelineTabLayout->setContentsMargins(0, 0, 0, 0);
   timelineTabLayout->setSpacing(8);
-  timelineTabLayout->addWidget(timelineWidget_, 1);
-  timelineTabLayout->addWidget(eventCalendarWidget_, 0);
+  // Give timeline more vertical weight but allow calendar to stretch too
+  timelineTabLayout->addWidget(timelineWidget_, 2);
+  timelineTabLayout->addWidget(eventCalendarWidget_, 1);
   tabWidget_->addTab(timelineTabWidget, "Timeline");
 
   // Tab 2: Analytics
