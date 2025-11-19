@@ -31,5 +31,11 @@ size_t Event::get_source_id() const { return source_id_; }
 bool operator<(const Event& lhs, const Event& rhs) {
   if (lhs.get_time() != rhs.get_time()) return lhs.get_time() > rhs.get_time();
   if (lhs.get_type() != rhs.get_type()) return lhs.get_type() > rhs.get_type();
-  return lhs.get_request_id() > rhs.get_request_id();
+  // If times are equal, prefer events with lower source_id (for arrivals)
+  // or lower device_id (for service_end)
+  if (lhs.get_type() == EventType::arrival) {
+    return lhs.get_source_id() > rhs.get_source_id();
+  } else {
+    return lhs.get_device_id() > rhs.get_device_id();
+  }
 }
