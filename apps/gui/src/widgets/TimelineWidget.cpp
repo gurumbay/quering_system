@@ -173,7 +173,7 @@ void TimelineCanvas::paintEvent(QPaintEvent* /*event*/) {
     painter.setPen(Qt::black);
     painter.setFont(QFont("Arial", 14, QFont::Bold));
     painter.drawText(rect(), Qt::AlignCenter,
-                     "Нажмите 'Reset' для начала симуляции");
+             "Press 'Reset' to start simulation");
     return;
   }
 
@@ -270,7 +270,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
 
     // Draw source label (always visible, positioned relative to viewport)
     painter.setPen(Qt::black);
-    QString label = QString("И%1").arg(i + 1);
+    QString label = QString("S%1").arg(i + 1);
 
     // Position label so it's always visible (5px from left edge of viewport)
     int labelX = std::max(5, 5 - scrollX);
@@ -287,7 +287,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
 
     // Draw device label
     painter.setPen(Qt::black);
-    QString label = QString("П%1").arg(i + 1);
+    QString label = QString("D%1").arg(i + 1);
 
     // Position label so it's always visible (5px from left edge of viewport)
     int labelX = std::max(5, 5 - scrollX);
@@ -304,7 +304,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
 
     // Draw buffer label
     painter.setPen(Qt::black);
-    QString label = QString("Б%1").arg(i + 1);
+    QString label = QString("B%1").arg(i + 1);
 
     // Position label so it's always visible (5px from left edge of viewport)
     int labelX = std::max(5, 5 - scrollX);
@@ -320,7 +320,7 @@ void TimelineCanvas::drawTimeline(QPainter& painter) {
 
   // Draw refusal label
   painter.setPen(Qt::red);
-  QString label = "Отказ";
+  QString label = "Refusal";
 
   // Position label so it's always visible (5px from left edge of viewport)
   int labelX = std::max(5, 5 - scrollX);

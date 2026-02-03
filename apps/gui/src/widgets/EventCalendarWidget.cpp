@@ -61,10 +61,11 @@ void EventCalendarWidget::populateTable(Simulator* sim,
 
   // Sources section header
   table_->insertRow(row);
-  auto* sourceHeader = new QTableWidgetItem("Sources (И)");
+  auto* sourceHeader = new QTableWidgetItem("Sources");
   sourceHeader->setFlags(Qt::ItemIsEnabled);
   sourceHeader->setData(Qt::FontRole, QFont("", -1, QFont::Bold));
   sourceHeader->setBackground(QBrush(QColor(240, 240, 240)));
+  sourceHeader->setForeground(QBrush(Qt::black));
   table_->setItem(row, 0, sourceHeader);
   table_->setSpan(row, 0, 1, 3);
   row++;
@@ -74,7 +75,7 @@ void EventCalendarWidget::populateTable(Simulator* sim,
     table_->insertRow(row);
 
     // Entity name
-    QString entityName = QString("И%1").arg(i + 1);
+    QString entityName = QString("S%1").arg(i + 1);
     auto* nameItem = new QTableWidgetItem(entityName);
     nameItem->setFlags(Qt::ItemIsEnabled);
     table_->setItem(row, 0, nameItem);
@@ -108,10 +109,11 @@ void EventCalendarWidget::populateTable(Simulator* sim,
 
   // Devices section header
   table_->insertRow(row);
-  auto* deviceHeader = new QTableWidgetItem("Devices (П)");
+  auto* deviceHeader = new QTableWidgetItem("Devices");
   deviceHeader->setFlags(Qt::ItemIsEnabled);
   deviceHeader->setData(Qt::FontRole, QFont("", -1, QFont::Bold));
   deviceHeader->setBackground(QBrush(QColor(240, 240, 240)));
+  deviceHeader->setForeground(QBrush(Qt::black));
   table_->setItem(row, 0, deviceHeader);
   table_->setSpan(row, 0, 1, 3);
   row++;
@@ -121,7 +123,7 @@ void EventCalendarWidget::populateTable(Simulator* sim,
     table_->insertRow(row);
 
     // Entity name
-    QString entityName = QString("П%1").arg(i + 1);
+    QString entityName = QString("D%1").arg(i + 1);
     auto* nameItem = new QTableWidgetItem(entityName);
     nameItem->setFlags(Qt::ItemIsEnabled);
     table_->setItem(row, 0, nameItem);

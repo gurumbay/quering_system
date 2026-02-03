@@ -15,3 +15,10 @@ else()
 endif()
 
 target_compile_features(sim_cli PUBLIC cxx_std_20)
+
+# Sweep runner: grid search over configurations
+add_executable(sim_sweep
+  src/sim_sweep.cpp
+)
+
+target_link_libraries(sim_sweep PRIVATE sim_core)

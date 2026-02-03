@@ -18,15 +18,15 @@ AnalyticsWidget::AnalyticsWidget(QWidget* parent)
   layout->addWidget(titleLabel);
 
   // Table 1: Source Characteristics
-  auto* sourcesLabel = new QLabel("Таблица 1: Характеристики источников ВС", this);
+  auto* sourcesLabel = new QLabel("Table 1: Source Characteristics", this);
   sourcesLabel->setStyleSheet("QLabel { font-weight: bold; }");
   layout->addWidget(sourcesLabel);
 
   sourcesTable_ = new QTableWidget(this);
   sourcesTable_->setColumnCount(8);
   sourcesTable_->setHorizontalHeaderLabels(
-      {"№ источника", "количество заявок", "p_отк", "T_преб", "T_БП",
-       "T_обсл", "Д_БП", "Д_обсл"});
+      {"Source #", "Arrivals", "P_ref", "T_system", "T_wait",
+       "T_service", "Var_wait", "Var_service"});
   sourcesTable_->horizontalHeader()->setStretchLastSection(true);
   sourcesTable_->verticalHeader()->setVisible(false);
   sourcesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -36,15 +36,15 @@ AnalyticsWidget::AnalyticsWidget(QWidget* parent)
   sourcesTable_->setMaximumHeight(300);
   layout->addWidget(sourcesTable_);
 
-  // Table 2: Device Characteristics
-  auto* devicesLabel =
-      new QLabel("Таблица 2: Характеристики приборов ВС", this);
+    // Table 2: Device Characteristics
+    auto* devicesLabel =
+      new QLabel("Table 2: Device Characteristics", this);
   devicesLabel->setStyleSheet("QLabel { font-weight: bold; }");
   layout->addWidget(devicesLabel);
 
   devicesTable_ = new QTableWidget(this);
   devicesTable_->setColumnCount(2);
-  devicesTable_->setHorizontalHeaderLabels({"№ прибора", "Коэффициент использования"});
+  devicesTable_->setHorizontalHeaderLabels({"Device #", "Utilization"});
   devicesTable_->horizontalHeader()->setStretchLastSection(true);
   devicesTable_->verticalHeader()->setVisible(false);
   devicesTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -77,8 +77,8 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
     int row = sourcesTable_->rowCount();
     sourcesTable_->insertRow(row);
 
-    // Source number (И1, И2, ...)
-    auto* sourceItem = new QTableWidgetItem(QString("И%1").arg(i + 1));
+    // Source number (S1, S2, ...)
+    auto* sourceItem = new QTableWidgetItem(QString("S%1").arg(i + 1));
     sourceItem->setFlags(Qt::ItemIsEnabled);
     sourcesTable_->setItem(row, 0, sourceItem);
 
@@ -89,7 +89,7 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
     arrivalsItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     sourcesTable_->setItem(row, 1, arrivalsItem);
 
-    // Refusal probability p_отк
+    // Refusal probability p_ref
     double p_ref = m.get_source_refusal_probability(i);
     auto* pRefItem =
         new QTableWidgetItem(QString::number(p_ref, 'f', 4));
@@ -97,7 +97,7 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
     pRefItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     sourcesTable_->setItem(row, 2, pRefItem);
 
-    // T_преб (avg time in system)
+    // T_system (avg time in system)
     double avgTimeInSystem = m.get_source_avg_time_in_system(i);
     auto* timeInSystemItem =
         new QTableWidgetItem(QString::number(avgTimeInSystem, 'f', 3));
@@ -105,7 +105,7 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
     timeInSystemItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     sourcesTable_->setItem(row, 3, timeInSystemItem);
 
-    // T_БП (avg waiting time)
+    // T_wait (avg waiting time)
     double avgWaitingTime = m.get_source_avg_waiting_time(i);
     auto* waitingTimeItem =
         new QTableWidgetItem(QString::number(avgWaitingTime, 'f', 3));
@@ -113,7 +113,7 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
     waitingTimeItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     sourcesTable_->setItem(row, 4, waitingTimeItem);
 
-    // T_обсл (avg service time)
+    // T_service (avg service time)
     double avgServiceTime = m.get_source_avg_service_time(i);
     auto* serviceTimeItem =
         new QTableWidgetItem(QString::number(avgServiceTime, 'f', 3));
@@ -121,7 +121,7 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
     serviceTimeItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     sourcesTable_->setItem(row, 5, serviceTimeItem);
 
-    // Д_БП (variance of waiting time)
+    // Var_wait (variance of waiting time)
     double varWaitingTime = m.get_source_variance_waiting_time(i);
     auto* varWaitingItem =
         new QTableWidgetItem(QString::number(varWaitingTime, 'f', 3));
@@ -129,7 +129,7 @@ void AnalyticsWidget::populateSourcesTable(Simulator* sim,
     varWaitingItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     sourcesTable_->setItem(row, 6, varWaitingItem);
 
-    // Д_обсл (variance of service time)
+    // Var_service (variance of service time)
     double varServiceTime = m.get_source_variance_service_time(i);
     auto* varServiceItem =
         new QTableWidgetItem(QString::number(varServiceTime, 'f', 3));
@@ -152,8 +152,8 @@ void AnalyticsWidget::populateDevicesTable(Simulator* sim,
     int row = devicesTable_->rowCount();
     devicesTable_->insertRow(row);
 
-    // Device number (П1, П2, ...)
-    auto* deviceItem = new QTableWidgetItem(QString("П%1").arg(i + 1));
+    // Device number (D1, D2, ...)
+    auto* deviceItem = new QTableWidgetItem(QString("D%1").arg(i + 1));
     deviceItem->setFlags(Qt::ItemIsEnabled);
     devicesTable_->setItem(row, 0, deviceItem);
 
